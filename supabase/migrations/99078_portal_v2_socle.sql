@@ -11,6 +11,21 @@
 -- IDEMPOTENTE ET REJOUABLE : ADD COLUMN IF NOT EXISTS, CREATE INDEX IF NOT
 -- EXISTS, DROP CONSTRAINT / POLICY / TRIGGER / FUNCTION IF EXISTS avant
 -- chaque CREATE (rappel 99076:17, incident 42P13 en production).
+--
+-- CORRECTIFS DE REVUE (2026-09-05), reperables par « CORRECTIF DE REVUE » :
+--   1  REVOKE nominatif apres le CREATE de calculate_artisan_dossier_status : le DROP+CREATE
+--      lui rendait les DEFAULT PRIVILEGES de 00001 et, etant SECURITY DEFINER, elle devenait
+--      un oracle non authentifie (verifie : 200 « INCOMPLET » avec la seule cle anon).
+--   2  Garde anti-WAL etendue : dossier_validated_at etait inatteignable pour tout dossier
+--      deja COMPLET, c'est-a-dire pour 100 % de l'existant.
+--   3  Rattrapage 4.c complet et symetrique (compteur PAR SOUS-REQUETE CORRELEE, recalcul du
+--      statut, pose et effacement de la date).
+--   4  DROP du CHECK de statut par parcours de pg_constraint : artisan_reports vient de
+--      depose_docs, son nom de contrainte n'est pas garanti.
+--   5  Ordre d'ecriture de la supersession ecrit noir sur blanc (index non deferrable).
+--  12  intervention_artisans : TRUNCATE et TRIGGER retires a authenticated.
+--  21  REVOKE anon sur artisans, artisan_attachments et artisan_reports.
+-- Voir aussi 99081 (chaine d'audit en lecture seule) et 99082 (RLS des tables voisines).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -23,7 +38,29 @@ ALTER TABLE public.artisan_reports ALTER COLUMN version SET NOT NULL;
 
 -- 1.b  Nouvel etat 'superseded' : une v(n) remplacee par une v(n+1) AVANT validation.
 --      Le CHECK de 99076:142 n'admettait que submitted | approved | rejected.
-ALTER TABLE public.artisan_reports DROP CONSTRAINT IF EXISTS artisan_reports_status_check;
+--      CORRECTIF DE REVUE (constat 4) : artisan_reports ne nait d'AUCUNE migration de ce
+--      depot — elle vient de 00064-00069 de depose_docs, que le CRM ne controle pas. Rien ne
+--      garantit que son CHECK de statut s'y appelle « artisan_reports_status_check » : un DROP
+--      nominatif ne ferait alors rien, l'ancien CHECK survivrait et rejetterait 'superseded'
+--      en 23514 — en production seulement, sur la fonctionnalite centrale du lot.
+--      On supprime donc TOUTE contrainte CHECK de la table qui porte sur la colonne status.
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN
+    SELECT c.conname
+      FROM pg_constraint c
+     WHERE c.conrelid = 'public.artisan_reports'::regclass
+       AND c.contype  = 'c'
+       AND EXISTS (SELECT 1 FROM pg_attribute a
+                    WHERE a.attrelid = c.conrelid
+                      AND a.attnum   = ANY (c.conkey)
+                      AND a.attname  = 'status')
+  LOOP
+    EXECUTE format('ALTER TABLE public.artisan_reports DROP CONSTRAINT %I', r.conname);
+  END LOOP;
+END $$;
+
 ALTER TABLE public.artisan_reports
   ADD CONSTRAINT artisan_reports_status_check
   CHECK (status IN ('submitted','approved','rejected','superseded'));
@@ -72,6 +109,21 @@ UPDATE public.artisan_reports r
 CREATE UNIQUE INDEX IF NOT EXISTS ux_artisan_reports_one_open
   ON public.artisan_reports(intervention_id, artisan_id)
   WHERE status = 'submitted';
+
+-- ORDRE D'ECRITURE IMPOSE (constat 5) : l'index n'est pas deferrable (un index partiel ne peut
+-- pas l'etre) et aucun trigger ne supersede automatiquement. Une modification de rapport avant
+-- validation DOIT donc, DANS LA MEME TRANSACTION :
+--   1. UPDATE artisan_reports SET status='superseded', superseded_at=now() WHERE id=<v(n)> ;
+--   2. INSERT de la version n+1 en status='submitted' ;
+--   3. UPDATE artisan_reports SET superseded_by=<v(n+1)> WHERE id=<v(n)>.
+-- L'etape 3 vient APRES l'etape 2 : superseded_by est une FK vers artisan_reports, verifiee
+-- immediatement, et la v(n+1) n'existe pas encore a l'etape 1.
+-- L'ordre inverse (INSERT avant supersession) leve 23505 : verifie en local, et couvert par
+-- deux tests d'integration (l'ordre correct passe, l'ordre inverse echoue).
+COMMENT ON INDEX public.ux_artisan_reports_one_open IS
+  'Au plus UN rapport submitted par couple (intervention, artisan). Non deferrable : la '
+  'supersession doit passer v(n) en ''superseded'' AVANT d''inserer v(n+1), dans la meme '
+  'transaction — sinon 23505.';
 
 -- 1.d  Debut de chantier recopie sur le rapport a l'envoi : fige la duree reelle.
 ALTER TABLE public.artisan_reports
@@ -171,6 +223,13 @@ CREATE POLICY "service_role full access"
 
 REVOKE ALL ON public.intervention_artisans FROM anon;
 
+-- CORRECTIF DE REVUE (constat 12) : le REVOKE ne visait qu'anon, or authenticated conservait
+-- ALL — TRUNCATE (D) et TRIGGER (t) compris. TRUNCATE ne passe par AUCUNE policy RLS : un
+-- simple compte connecte pouvait vider la table que cette migration securise. Meme
+-- raisonnement que 99079:98-102 pour le journal : REVOKE ALL puis GRANT des quatre verbes.
+REVOKE ALL ON public.intervention_artisans FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.intervention_artisans TO authenticated;
+
 -- ---------------------------------------------------------------------
 -- 3. PIECES DU DOSSIER : verification par le gestionnaire (D16, D17)
 --    review_status existe deja (99076:236-240) mais aucune UI ni route ne l'ecrit.
@@ -246,6 +305,18 @@ COMMENT ON FUNCTION public.calculate_artisan_dossier_status(UUID) IS
   'INCOMPLET. Seules les pieces dont review_status vaut ''approved'' (ou NULL, historique) '
   'comptent — sans quoi un depot portail non verifie ferait mentir le badge COMPLET.';
 
+-- CORRECTIF DE REVUE (constats 1 et 13) — REGRESSION DE SECURITE, la plus grave du lot.
+-- Le DROP + CREATE ci-dessus fait repasser la fonction par les ALTER DEFAULT PRIVILEGES de
+-- 00001 : elle repart grantee a PUBLIC, anon ET authenticated. Combinee au SECURITY DEFINER
+-- (qui contourne la RLS d'artisan_attachments), elle devenait un ORACLE NON AUTHENTIFIE sur
+-- l'etat documentaire de n'importe quel artisan dont on devine l'UUID :
+--   POST /rest/v1/rpc/calculate_artisan_dossier_status avec la seule cle anon => 200 'INCOMPLET'.
+-- Avant la migration la fonction n'etait pas DEFINER : anon lisait a travers la RLS et
+-- n'obtenait rien d'exploitable. Motif repris de 99076:85-90 et du memo projet
+-- « DEFAULT PRIVILEGES Supabase exposent les fonctions » : REVOKE nominatif obligatoire.
+REVOKE ALL ON FUNCTION public.calculate_artisan_dossier_status(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.calculate_artisan_dossier_status(UUID) TO authenticated, service_role;
+
 -- 4.b  Recalcul + compteur « a verifier » + date de validation du dossier.
 --      Les triggers de 00008:89-99 n'ecoutent QUE INSERT et DELETE : valider une piece est un
 --      UPDATE, il ne recalculait donc rien.
@@ -276,11 +347,25 @@ BEGIN
    WHERE a.id = v_artisan
      -- garde anti-ecriture inutile : artisans est en REPLICA IDENTITY FULL (00085:10),
      -- chaque UPDATE sans changement coute du WAL logique et un evenement realtime.
+     -- CORRECTIF DE REVUE (constat 2) : la garde ne testait que le statut et le compteur.
+     -- Un artisan DEJA COMPLET dont dossier_validated_at est NULL (c'est le cas de 100 % de
+     -- l'existant avant cette migration) voyait l'UPDATE filtre : le CASE n'etait jamais
+     -- evalue et la date restait NULL indefiniment, alors que le portail affiche
+     -- « Dossier complet valide le … ». On ajoute les deux transitions de la date.
      AND (a.statut_dossier IS DISTINCT FROM v_statut
-          OR a.pieces_a_verifier IS DISTINCT FROM v_pending);
+          OR a.pieces_a_verifier IS DISTINCT FROM v_pending
+          OR (v_statut =  'COMPLET' AND a.dossier_validated_at IS NULL)
+          OR (v_statut <> 'COMPLET' AND a.dossier_validated_at IS NOT NULL));
 
   RETURN COALESCE(NEW, OLD);
 END $$;
+
+-- Meme traitement par principe pour la fonction de trigger (constat 13) : PostgREST refuse
+-- les fonctions trigger (404 PGRST202), l'exposition y est theorique, mais on ne laisse pas
+-- une fonction SECURITY DEFINER grantee a anon. Verifie en local : le trigger continue de
+-- s'executer pour authenticated (le privilege EXECUTE d'une fonction de trigger n'est
+-- controle qu'au CREATE TRIGGER).
+REVOKE ALL ON FUNCTION public.fn_artisan_dossier_sync() FROM PUBLIC, anon, authenticated;
 
 COMMENT ON FUNCTION public.fn_artisan_dossier_sync() IS
   'Seul ecrivain de artisans.statut_dossier et artisans.pieces_a_verifier depuis '
@@ -298,10 +383,51 @@ CREATE TRIGGER trg_artisan_dossier_sync
   ON public.artisan_attachments
   FOR EACH ROW EXECUTE FUNCTION public.fn_artisan_dossier_sync();
 
--- 4.c  Rattrapage du compteur sur l'existant.
+-- 4.c  Rattrapage de l'existant — COMPLET ET SYMETRIQUE (correctifs de revue 2 et 3).
+--
+--      L'ancienne version ne rattrapait que le compteur, et le faisait par une JOINTURE
+--      INTERNE sur les artisans ayant au moins une piece 'pending' : un artisan dont le
+--      compteur serait reste non nul alors qu'il n'a plus aucune piece en attente n'etait
+--      jamais remis a zero (le COALESCE(p.n, 0) etait mort, p.n ne pouvant pas etre NULL).
+--      Elle ne recalculait pas non plus statut_dossier, alors que la migration CHANGE la
+--      regle de calcul — 99015:47-49 faisait deja ce recalcul pour la meme raison.
+
+--   (1) Compteur : sous-requete CORRELEE, donc tous les artisans sont couverts.
 UPDATE public.artisans a
-   SET pieces_a_verifier = COALESCE(p.n, 0)
-  FROM (SELECT artisan_id, COUNT(*) n FROM public.artisan_attachments
-         WHERE review_status = 'pending' GROUP BY artisan_id) p
- WHERE a.id = p.artisan_id
-   AND a.pieces_a_verifier IS DISTINCT FROM COALESCE(p.n, 0);
+   SET pieces_a_verifier = COALESCE((
+         SELECT COUNT(*) FROM public.artisan_attachments x
+          WHERE x.artisan_id = a.id AND x.review_status = 'pending'), 0)
+ WHERE a.pieces_a_verifier IS DISTINCT FROM COALESCE((
+         SELECT COUNT(*) FROM public.artisan_attachments x
+          WHERE x.artisan_id = a.id AND x.review_status = 'pending'), 0);
+
+--   (2) Statut : sans ce recalcul, la colonne denormalisee reste figee sur l'ANCIENNE regle
+--       jusqu'a la prochaine ecriture sur une piece de l'artisan. Un dossier dont une piece
+--       requise est 'pending' afficherait COMPLET tout en portant la pastille « n pieces a
+--       verifier ». Le risque est nul au premier deploiement (review_status prend partout le
+--       DEFAULT 'approved') mais reel des que 99076 et 99078 sont appliquees separement.
+UPDATE public.artisans a
+   SET statut_dossier = public.calculate_artisan_dossier_status(a.id)
+ WHERE a.statut_dossier IS DISTINCT FROM public.calculate_artisan_dossier_status(a.id);
+
+--   (3) Date de validation : tous les dossiers COMPLET anterieurs a cette migration ont
+--       dossier_validated_at a NULL et, sans ce rattrapage, ne l'obtiendraient JAMAIS
+--       (constat 2). Symetrique : un dossier qui n'est plus COMPLET perd sa date.
+UPDATE public.artisans
+   SET dossier_validated_at = now()
+ WHERE statut_dossier = 'COMPLET' AND dossier_validated_at IS NULL;
+
+UPDATE public.artisans
+   SET dossier_validated_at = NULL
+ WHERE statut_dossier IS DISTINCT FROM 'COMPLET' AND dossier_validated_at IS NOT NULL;
+
+-- ---------------------------------------------------------------------
+-- 5. CORRECTIF DE REVUE (constat 21) — defense en profondeur sur les trois autres tables
+--    enrichies par cette migration. Leur RLS neutralise deja anon (probes : 200 []), mais
+--    elles conservaient anon=arwdDxtm : TRUNCATE (D) ne passe par aucune policy RLS.
+--    C'est l'argument que 99079:98-100 developpe pour son propre journal ; on l'applique ici.
+--    La RLS continue de porter le controle fin pour authenticated : rien n'est touche de ce cote.
+-- ---------------------------------------------------------------------
+REVOKE ALL ON public.artisans            FROM anon;
+REVOKE ALL ON public.artisan_attachments FROM anon;
+REVOKE ALL ON public.artisan_reports     FROM anon;

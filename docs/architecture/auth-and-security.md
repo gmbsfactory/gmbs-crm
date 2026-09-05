@@ -676,3 +676,44 @@ graph TD
 
     A --> B --> C --> F --> H
 ```
+
+
+## Socle portail v2 — ce que la revue du 2026-09-05 a fermé, et ce qui reste ouvert
+
+Migrations concernées : `99078_portal_v2_socle.sql`, `99079_artisan_portal_actions.sql`,
+`99081_actor_resolution_lecture_seule.sql`, `99082_rls_tables_enfant_intervention.sql`.
+Tests de non-régression : `tests/integration/security/anon-access.test.ts` et
+`tests/integration/migrations/99078-socle.test.ts` (base **locale** ; poser
+`REQUIRE_LOCAL_SUPABASE=1` pour qu'ils échouent au lieu de se désactiver).
+
+### Fermé
+
+| Trou | Correctif |
+|---|---|
+| `calculate_artisan_dossier_status` recréée par `DROP` + `CREATE` repartait grantée à `PUBLIC`, `anon` et `authenticated` par les `ALTER DEFAULT PRIVILEGES` de `00001`. Étant `SECURITY DEFINER`, elle devenait un **oracle non authentifié** sur l'état documentaire de n'importe quel artisan dont on devine l'UUID (`POST /rest/v1/rpc/…` avec la seule clé anon ⇒ `200 "INCOMPLET"`). | `REVOKE ALL … FROM PUBLIC, anon, authenticated` + `GRANT EXECUTE … TO authenticated, service_role` juste après le `CREATE` (motif `99076:85-90`). Idem pour `fn_artisan_dossier_sync`. |
+| `intervention_artisans` : `authenticated` conservait `ALL`, donc `TRUNCATE` (qui ne passe par **aucune** policy RLS) et `TRIGGER`. | `REVOKE ALL FROM authenticated` puis `GRANT SELECT, INSERT, UPDATE, DELETE`. |
+| `intervention_costs` et `intervention_attachments` : ni RLS ni `REVOKE`. Avec la clé anon, `GET` renvoyait le montant dû à l'artisan (`cost_type='sst'`) et `DELETE` répondait `204`. Le `REVOKE` de `99078` ne déplaçait la fuite que d'une table. | `99082` : `ENABLE RLS` + policies `authenticated`/`service_role` + `REVOKE ALL FROM anon` **dans la même migration** (motif `99057` : RLS sans policy = deny-all). |
+| Toute table future de `public` repartait grantée à `anon`. | `99082` : `ALTER DEFAULT PRIVILEGES … REVOKE ALL ON TABLES / SEQUENCES / FUNCTIONS FROM anon`, pour `postgres` et (si les droits le permettent) `supabase_admin`. |
+| `createServerSupabaseAdmin` retombait sur la clé anon avec un simple `console.warn`. | Erreur explicite : une variable oubliée se voit au déploiement, pas en incident. |
+
+### Limite mesurée, à connaître avant d'écrire une migration
+
+`ALTER DEFAULT PRIVILEGES` **ne ferme pas les fonctions**. PostgreSQL ajoute `=X` (EXECUTE à
+`PUBLIC`) à toute fonction neuve *en plus* des privilèges par défaut, et ce `=X` ne peut pas être
+retiré par ce mécanisme — vérifié en local. `anon` faisant partie de `PUBLIC`, **la seule
+protection fiable d'une fonction reste le `REVOKE` nominatif juste après son `CREATE`.**
+
+### Reste ouvert, volontairement
+
+- **`USING (true)`** sur `intervention_artisans` (et sur `intervention_costs` /
+  `intervention_attachments`) : n'importe quel compte authentifié lit et modifie
+  `price_accepted_amount`, `payment_status` et `paid_at`. C'est le modèle de tout le schéma
+  (`artisans`, `interventions`), mais ces colonnes sont **financières et nouvelles** : la
+  protection ne repose plus que sur les contrôles applicatifs. **Au lot L6**, restreindre leur
+  `UPDATE` par une policy adossée au rôle (`has_permission`), ou n'autoriser leur écriture que
+  par `service_role` via une route serveur.
+- **`artisans`, `artisan_attachments`, `artisan_reports`** conservent `ALL` pour
+  `authenticated` (donc `TRUNCATE`) : c'est la norme du schéma, traitée dans le chantier
+  « CRM auditable », hors périmètre du socle.
+- **`tenants`, `messages`, `conversations`, `intervention_payments`, `comments`** restent
+  lisibles avec la clé anon : incident déjà mémorisé, hors périmètre du socle.

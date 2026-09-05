@@ -77,6 +77,27 @@ export function isLocalSupabaseAvailable(): boolean {
   return readLocalSupabaseEnv() !== null
 }
 
+/**
+ * Correctif de revue (constat 10) : un garde-fou qui ne s'exécute jamais n'en est pas un.
+ *
+ * `describe.skipIf(!disponible)` rend la suite VERTE partout où la base locale est arrêtée —
+ * en CI notamment. Quand `REQUIRE_LOCAL_SUPABASE=1` est posée (commande de vérification du
+ * lot, CI), on échoue bruyamment au chargement du fichier au lieu de sauter en silence.
+ *
+ * @param disponible résultat des sondes du fichier appelant (base locale, `psql`…)
+ * @param quoi       ce qui manque, cité dans le message d'erreur
+ */
+export function exigerBaseLocaleSiDemande(disponible: boolean, quoi = "la base Supabase locale"): void {
+  if (disponible) return
+  if (process.env.REQUIRE_LOCAL_SUPABASE === "1") {
+    throw new Error(
+      `REQUIRE_LOCAL_SUPABASE=1 mais ${quoi} n'est pas disponible : ` +
+        "démarrez-la (« supabase start ») ou retirez la variable. " +
+        "Sans elle ces tests se désactivent silencieusement et ne gardent plus rien."
+    )
+  }
+}
+
 export interface RestResponse<T = unknown> {
   status: number
   body: T
@@ -181,12 +202,36 @@ export function signAuthenticatedToken(env: LocalSupabaseEnv, subject = crypto.r
   return `${header}.${claims}.${signature}`
 }
 
-/** Rejoue un fichier de migration avec psql. Retourne le code de sortie. */
+/**
+ * Verrou consultatif partagé par les suites d'intégration du socle (correctif de revue,
+ * constat 10). Le rejeu d'une migration prend des `AccessExclusiveLock` (ALTER TABLE,
+ * DROP FUNCTION … CASCADE) pendant que d'autres suites écrivent sur les mêmes tables : sans
+ * sérialisation, PostgreSQL détecte un **deadlock** (reproduit en local en lançant les deux
+ * fichiers d'intégration en parallèle). Toute suite qui écrit prend ce verrou en début de
+ * transaction ; `runMigration` le prend pour toute la durée du fichier rejoué.
+ */
+export const VERROU_SOCLE = 919078
+
+/** À placer juste après le `BEGIN;` de tout script qui écrit sur les tables du socle. */
+export const VERROU_SOCLE_SQL = `SELECT pg_advisory_xact_lock(${VERROU_SOCLE});`
+
+/** Rejoue un fichier de migration avec psql, sous verrou consultatif. Retourne le code de sortie. */
 export function runMigration(env: LocalSupabaseEnv, relativePath: string): { code: number; output: string } {
   try {
     const output = execFileSync(
       "psql",
-      [env.dbUrl, "-v", "ON_ERROR_STOP=1", "-q", "-f", path.join(REPO_ROOT, relativePath)],
+      [
+        env.dbUrl,
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-q",
+        // `-c` puis `-f` s'exécutent dans LA MÊME session psql, dans cet ordre : le verrou de
+        // session est donc tenu pendant tout le rejeu et relâché à la sortie de psql.
+        "-c",
+        `SELECT pg_advisory_lock(${VERROU_SOCLE})`,
+        "-f",
+        path.join(REPO_ROOT, relativePath),
+      ],
       { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 120_000 }
     )
     return { code: 0, output }

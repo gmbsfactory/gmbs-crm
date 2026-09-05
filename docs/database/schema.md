@@ -310,7 +310,7 @@ RLS : SELECT `authenticated`, tout pour `service_role`.
 
 ---
 
-### Socle vision v2 (migrations 99078, 99079)
+### Socle vision v2 (migrations 99078, 99079, plus les correctifs de revue 99081 et 99082)
 
 Spécification : [portail-vision-spec.md](../architecture/portail-vision-spec.md) §3. Aucune table nouvelle hors le journal : des colonnes sur quatre tables existantes, plus la **sécurisation** de `intervention_artisans`.
 
@@ -365,17 +365,17 @@ Journal **append-only** des actions de l'artisan depuis le portail, et de leurs 
 | Colonne | Type | Description |
 |---------|------|-------------|
 | `artisan_id` | `uuid` FK NOT NULL | Acteur côté artisan (cascade) |
-| `actor_user_id` | `uuid` FK → `users` | Acteur côté CRM quand `source='crm'` — jamais nul des deux côtés à la fois (leçon d'`artisan_audit_log`, 92 % sans acteur) |
+| `actor_user_id` | `uuid` FK → `users` (`ON DELETE SET NULL`) | Acteur côté CRM quand `source='crm'`. **Contrainte** `artisan_portal_actions_acteur_check` : `source <> 'crm' OR actor_user_id IS NOT NULL OR payload ? 'actor'` — la promesse « jamais nul des deux côtés » (leçon d'`artisan_audit_log`, 92 % sans acteur) est tenue par la base, pas par la discipline des routes, et `payload.actor` fait survivre l'attribution à la suppression du compte |
 | `source` | `text` CHECK | `portal` \| `crm` |
-| `intervention_id` / `report_id` | `uuid` FK | Objet de l'action |
+| `intervention_id` / `report_id` | `uuid` FK **`ON DELETE SET NULL`** | Objet de l'action. Pas de `CASCADE` : le CRM supprime réellement des interventions, et l'historique disparaîtrait au moment précis où il sert (litige sur un prix accepté, sur une heure de démarrage). Les routes recopient la référence lisible (`id_inter`, adresse) dans `payload` |
 | `attachment_id` | `uuid` **sans FK** | Cible `artisan_attachments` ou `intervention_attachments` selon `action_type` |
 | `action_type` | `text` CHECK fermé | `PRICE_ACCEPTED`, `PRICE_REFUSED`, `WORK_STARTED`, `REPORT_SUBMITTED`, `REPORT_REPLACED`, `PHOTO_UPLOADED`, `DOCUMENT_UPLOADED`, `DOCUMENT_APPROVED`, `DOCUMENT_REJECTED`, `AVATAR_CHANGED`, `DECHARGE_SIGNED`, `REPORT_APPROVED`, `REPORT_REJECTED` |
 | `payload` | `jsonb` NOT NULL DEFAULT `{}` | Détail de l'action |
-| `occurred_at` | `timestamptz` | Horodatage **déclaré** par le téléphone, borné côté serveur à `[now − 7 j, now + 5 min]` ; hors bornes, la valeur brute part dans `payload.occurred_at_declared` avec `payload.clock_skew = true`. Un fait n'est jamais rejeté pour une horloge fausse |
+| `occurred_at` | `timestamptz` CHECK | Horodatage **déclaré** par le téléphone, borné **en base** à `[recorded_at − 7 j, recorded_at + 5 min]` (contrainte `artisan_portal_actions_occurred_at_check`, filet ; les routes recalent la valeur avant l'insertion) ; hors bornes, la valeur brute part dans `payload.occurred_at_declared` avec `payload.clock_skew = true`. Un fait n'est jamais rejeté pour une horloge fausse |
 | `recorded_at` | `timestamptz` | Horodatage serveur : fait foi pour l'audit |
-| `event_uid` | `text` | Clé d'idempotence du rejeu hors ligne (index unique partiel) |
+| `event_uid` | `text` | Clé d'idempotence du rejeu hors ligne. Index unique partiel sur **`(artisan_id, event_uid)`** : la chaîne est générée par le téléphone, unique globalement deux appareils se bloqueraient et le `200` de rejeu rendrait la trace d'un artisan à un autre. Le lookup des routes est `(artisan_id, event_uid)` |
 
-RLS : `SELECT` pour `authenticated`, tout pour `service_role`. `REVOKE ALL FROM anon` **et** `REVOKE ALL FROM authenticated` suivi de `GRANT SELECT` — un simple `REVOKE INSERT, UPDATE, DELETE` laisserait `TRUNCATE`, qui ne passe par aucune policy. L'immuabilité est **applicative** : un trigger `BEFORE UPDATE OR DELETE … RAISE EXCEPTION` rendrait impossible la suppression d'un artisan ou d'une intervention (FK `ON DELETE CASCADE`), pour tout le monde, `service_role` compris.
+RLS : `SELECT` pour `authenticated`, tout pour `service_role`. `REVOKE ALL FROM anon` **et** `REVOKE ALL FROM authenticated` suivi de `GRANT SELECT` — un simple `REVOKE INSERT, UPDATE, DELETE` laisserait `TRUNCATE`, qui ne passe par aucune policy. L'immuabilité est garantie par le trigger `trg_artisan_portal_actions_no_update`, **`BEFORE UPDATE` seulement** : l'objection d'origine (« un trigger d'immuabilité empêcherait de supprimer une intervention ») ne valait que pour `DELETE`. Le seul `UPDATE` toléré est la neutralisation d'une clé étrangère par `ON DELETE SET NULL` ; toute autre modification lève `42501`. Sans lui, `service_role` — le rôle de **toutes** les routes serveur qui écrivent ce journal — pouvait réécrire une ligne sans laisser de trace.
 
 ---
 
@@ -447,7 +447,7 @@ Objectifs par gestionnaire (migration 00009).
 | `get_user_permissions(user_id)` | Retourne les permissions effectives |
 | `user_has_permission(user_id, key)` | Vérifie une permission spécifique |
 | `get_intervention_history(id)` | Retourne l'historique d'audit d'une intervention |
-| `calculate_artisan_dossier_status(artisan_uuid)` | Statut du dossier artisan : `COMPLET` (5 pièces requises **validées**) / `À compléter` / `INCOMPLET`. Depuis 99078, seules les pièces dont `review_status` vaut `approved` — ou `NULL`, historique — comptent, via `COALESCE(review_status,'approved')` : écrite `IN ('approved', NULL)`, la condition ne matcherait jamais `NULL` et ferait basculer les dossiers existants |
+| `calculate_artisan_dossier_status(artisan_uuid)` | **`SECURITY DEFINER`, `REVOKE ALL … FROM PUBLIC, anon, authenticated` puis `GRANT EXECUTE … TO authenticated, service_role` juste après le `CREATE`** (sans quoi les `ALTER DEFAULT PRIVILEGES` de `00001` en font un oracle non authentifié : `POST /rest/v1/rpc/…` avec la seule clé anon renvoyait `200 "INCOMPLET"`). Statut du dossier artisan : `COMPLET` (5 pièces requises **validées**) / `À compléter` / `INCOMPLET`. Depuis 99078, seules les pièces dont `review_status` vaut `approved` — ou `NULL`, historique — comptent, via `COALESCE(review_status,'approved')` : écrite `IN ('approved', NULL)`, la condition ne matcherait jamais `NULL` et ferait basculer les dossiers existants |
 
 ---
 
@@ -460,7 +460,7 @@ Objectifs par gestionnaire (migration 00009).
 | Search views refresh | `interventions`, `artisans` | Rafraîchit les vues matérialisées de recherche (migration 00033) |
 | Intervention audit | `interventions` | Log les modifications dans `intervention_audit_log` |
 | Touch intervention on child | `intervention_costs`, `intervention_artisans` | Met a jour `updated_at` de l'intervention parent (migration 00082) |
-| `trg_artisan_dossier_sync` | `artisan_attachments` | `AFTER INSERT OR DELETE OR UPDATE OF review_status, kind` : recalcule `artisans.statut_dossier`, `artisans.pieces_a_verifier` et `artisans.dossier_validated_at`. **Remplace** les deux triggers INSERT/DELETE de `00008`, qui ne voyaient pas la validation d'une pièce (un `UPDATE` de `review_status`) et qui feraient un second écrivain du même champ. Garde anti-écriture inutile : rien n'est écrit si ni le statut ni le compteur ne changent — `artisans` est en `REPLICA IDENTITY FULL` et chaque `UPDATE` coûte du WAL logique et un événement temps réel (migration 99078) |
+| `trg_artisan_dossier_sync` | `artisan_attachments` | `AFTER INSERT OR DELETE OR UPDATE OF review_status, kind` : recalcule `artisans.statut_dossier`, `artisans.pieces_a_verifier` et `artisans.dossier_validated_at`. **Remplace** les deux triggers INSERT/DELETE de `00008`, qui ne voyaient pas la validation d'une pièce (un `UPDATE` de `review_status`) et qui feraient un second écrivain du même champ. Garde anti-écriture inutile : rien n'est écrit si ni le statut, **ni le compteur, ni la transition de `dossier_validated_at`** ne changent — `artisans` est en `REPLICA IDENTITY FULL` et chaque `UPDATE` coûte du WAL logique et un événement temps réel. La garde d'origine ignorait la date : un dossier déjà `COMPLET` dont `dossier_validated_at` était `NULL` — l'état de tout l'existant — ne l'obtenait jamais (migration 99078) |
 | `trg_artisan_reports_sync_flag` | `artisan_reports` | `AFTER INSERT OR UPDATE OF status OR DELETE` : recalcule `interventions.has_portal_report = EXISTS(rapport submitted)` (`COALESCE(NEW, OLD).intervention_id`) — seul mécanisme qui écrit ce drapeau ; la suppression d'un rapport `submitted` fait retomber le badge « À vérifier » (migration 99076) |
 
 ---

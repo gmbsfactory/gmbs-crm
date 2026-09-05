@@ -272,3 +272,30 @@ INSERT INTO ... ON CONFLICT ... DO NOTHING;
 - Ajouter des `COMMENT ON` sur les tables et colonnes non évidentes
 - Inclure un en-tête avec version, date et description
 - Documenter le "pourquoi" des migrations de correction (fix_*)
+
+
+## Leçons du socle portail v2 (revue du 2026-09-05)
+
+Cinq pièges vérifiés en local, à relire avant d'écrire une migration dans ce dépôt.
+
+1. **`DROP FUNCTION` + `CREATE FUNCTION` rend les privilèges par défaut.** Les
+   `ALTER DEFAULT PRIVILEGES` de `00001` regrantent `EXECUTE` à `anon` (et `PUBLIC` garde son
+   `=X` de toute façon). Toute fonction, *a fortiori* `SECURITY DEFINER`, doit être suivie d'un
+   `REVOKE ALL … FROM PUBLIC, anon` + `GRANT EXECUTE … TO authenticated, service_role`.
+   `ALTER DEFAULT PRIVILEGES` ferme les **tables** futures, jamais les **fonctions**.
+2. **`REVOKE ALL` puis `GRANT` des verbes voulus**, jamais `REVOKE SELECT, INSERT, UPDATE,
+   DELETE` : ce dernier laisse `TRUNCATE` (`D`) et `TRIGGER` (`t`), et `TRUNCATE` ne passe par
+   aucune policy RLS.
+3. **`ENABLE ROW LEVEL SECURITY` et ses policies vont dans la MÊME migration** (motif `99057`) :
+   RLS sans policy = deny-all = lockout client.
+4. **Une garde « anti-écriture inutile » doit couvrir *toutes* les colonnes que l'UPDATE pose.**
+   Dans `fn_artisan_dossier_sync`, la garde ne testait que deux colonnes sur trois : la
+   troisième (`dossier_validated_at`) est restée `NULL` pour tout l'existant.
+5. **Un rattrapage de données se fait par sous-requête corrélée, pas par jointure interne** :
+   une jointure ne voit que les lignes qui ont une correspondance, donc jamais les compteurs
+   orphelins à remettre à zéro. Et quand une migration **change la règle de calcul** d'une
+   colonne dénormalisée, elle doit la recalculer (`99015:47-49` le faisait déjà).
+
+Contrainte de nommage vérifiée au passage : ne jamais `DROP CONSTRAINT` par son nom quand la
+table ne naît pas de ce dépôt (`artisan_reports` vient de `depose_docs`). Parcourir
+`pg_constraint` et supprimer la contrainte qui porte sur la colonne visée.

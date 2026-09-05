@@ -15,19 +15,35 @@
  * C'est indispensable : la base locale porte les données de démo, et un artisan créé
  * ici ne pourrait pas être supprimé ensuite (le trigger d'audit d'`artisans` insère
  * dans `artisan_audit_log`, dont la clé étrangère bloque la suppression).
+ *
+ * ⚠️ **UNE exception, à connaître avant de lancer ce fichier** (correctif de revue, constat 10) :
+ * le test d'idempotence rejoue les migrations **hors transaction**, sur la base locale
+ * *partagée* avec les autres équipes. `DROP FUNCTION … CASCADE` y supprime
+ * `trg_artisan_dossier_sync` puis le repose quelques millisecondes plus tard : une écriture
+ * concurrente sur `artisan_attachments` pendant cette fenêtre ne synchroniserait pas le
+ * dossier. **Ne pas lancer ce fichier pendant une démo.**
+ *
+ * Les suites d'intégration du socle se sérialisent entre elles par le verrou consultatif
+ * `VERROU_SOCLE` (`pg_advisory_xact_lock`) : sans lui, le rejeu (`AccessExclusiveLock`) et les
+ * écritures d'`anon-access.test.ts` se bloquaient mutuellement — deadlock reproduit en local.
  */
 import { describe, it, expect } from "vitest"
 import {
+  exigerBaseLocaleSiDemande,
   isLocalSupabaseAvailable,
   isPsqlAvailable,
   readLocalSupabaseEnv,
   rest,
   runMigration,
   runSql,
+  VERROU_SOCLE_SQL,
   type LocalSupabaseEnv,
 } from "../helpers/local-supabase"
 
 const LOCAL_DB_UP = isLocalSupabaseAvailable() && isPsqlAvailable()
+// Correctif de revue (constat 10) : sauter en silence n'est pas garder. Avec
+// REQUIRE_LOCAL_SUPABASE=1 (commande de vérification du lot, CI), l'absence de base échoue.
+exigerBaseLocaleSiDemande(LOCAL_DB_UP, "la base Supabase locale et psql")
 
 const ARTISAN = "'11111111-1111-4111-8111-111111111111'"
 const INTERVENTION = "'22222222-2222-4222-8222-222222222222'"
@@ -35,6 +51,7 @@ const INTERVENTION = "'22222222-2222-4222-8222-222222222222'"
 /** Ouvre la transaction et crée l'artisan (plus l'intervention) de travail. */
 const FIXTURE = `
 BEGIN;
+${VERROU_SOCLE_SQL}
 INSERT INTO public.artisans (id, nom, prenom, is_active)
   VALUES (${ARTISAN}, 'L0-TEST', 'Socle', true);
 INSERT INTO public.interventions (id, date) VALUES (${INTERVENTION}, now());
@@ -77,11 +94,13 @@ describe.skipIf(!LOCAL_DB_UP)("99078_portal_v2_socle", () => {
 
   describe("idempotence", () => {
     it(
-      "should rejouer 99078 puis 99079 deux fois de suite sans erreur",
+      "should rejouer 99078, 99079, 99081 et 99082 deux fois de suite sans erreur",
       () => {
         for (const migration of [
           "supabase/migrations/99078_portal_v2_socle.sql",
           "supabase/migrations/99079_artisan_portal_actions.sql",
+          "supabase/migrations/99081_actor_resolution_lecture_seule.sql",
+          "supabase/migrations/99082_rls_tables_enfant_intervention.sql",
         ]) {
           const premier = runMigration(env, migration)
           expect(premier.code, premier.output).toBe(0)
@@ -185,6 +204,58 @@ describe.skipIf(!LOCAL_DB_UP)("99078_portal_v2_socle", () => {
       expect(date2?.slice("DATE2=".length)).toBe(date1?.slice("DATE1=".length))
     })
 
+    it("should réparer un artisan DÉJÀ COMPLET dont dossier_validated_at est NULL (constat 2)", () => {
+      // C'est l'état de 100 % de la base avant cette migration, et le cas que la suite
+      // d'origine ne pouvait pas voir : elle construisait toujours l'artisan de zéro et
+      // n'exerçait que la MONTÉE vers COMPLET. Or la garde anti-WAL ne testait que
+      // statut_dossier et pieces_a_verifier : sur un dossier déjà COMPLET dont le compteur
+      // ne bouge pas, l'UPDATE était filtré, le CASE jamais évalué, la date restait NULL
+      // indéfiniment — alors que le portail affiche « Dossier complet validé le … ».
+      const corps = `
+        ${toutesLesPieces("approved")}
+        ${marqueur("POSEE", `SELECT dossier_validated_at IS NOT NULL FROM public.artisans WHERE id = ${ARTISAN}`)}
+        -- on se remet dans l'état d'un artisan antérieur à la migration
+        UPDATE public.artisans SET dossier_validated_at = NULL WHERE id = ${ARTISAN};
+        ${marqueur("EFFACEE", `SELECT dossier_validated_at FROM public.artisans WHERE id = ${ARTISAN}`)}
+        -- une écriture quelconque sur une pièce redéclenche le trigger : il doit REPOSER la date
+        UPDATE public.artisan_attachments SET review_status = 'approved'
+         WHERE artisan_id = ${ARTISAN} AND kind = 'kbis';
+        ${compteurs}
+        ${marqueur("REPAREE", `SELECT dossier_validated_at IS NOT NULL FROM public.artisans WHERE id = ${ARTISAN}`)}
+      `
+      const sortie = scenario(corps)
+      expect(sortie).toContain("POSEE=true")
+      expect(sortie).toContain("EFFACEE=NULL")
+      expect(sortie).toContain("COMPTEURS=0|COMPLET")
+      expect(sortie).toContain("REPAREE=true")
+    })
+
+    it("should ne laisser AUCUN dossier COMPLET sans date après le rattrapage 4.c (constats 2 et 3)", () => {
+      // Invariants vérifiés sur la base réelle, après le rejeu des migrations ci-dessus.
+      // Le rattrapage d'origine ne touchait que le compteur, par une jointure interne :
+      // ni statut_dossier (dont la migration CHANGE la règle de calcul), ni la date.
+      const res = runSql(
+        env,
+        `
+        SELECT 'COMPLET_SANS_DATE=' || count(*)::text FROM public.artisans
+          WHERE statut_dossier = 'COMPLET' AND dossier_validated_at IS NULL;
+        SELECT 'DATE_SANS_COMPLET=' || count(*)::text FROM public.artisans
+          WHERE statut_dossier IS DISTINCT FROM 'COMPLET' AND dossier_validated_at IS NOT NULL;
+        SELECT 'STATUT_PERIME=' || count(*)::text FROM public.artisans a
+          WHERE a.statut_dossier IS DISTINCT FROM public.calculate_artisan_dossier_status(a.id);
+        SELECT 'COMPTEUR_PERIME=' || count(*)::text FROM public.artisans a
+          WHERE a.pieces_a_verifier IS DISTINCT FROM COALESCE((
+            SELECT count(*) FROM public.artisan_attachments x
+             WHERE x.artisan_id = a.id AND x.review_status = 'pending'), 0);
+        `
+      )
+      expect(res.code, res.output).toBe(0)
+      expect(res.output).toContain("COMPLET_SANS_DATE=0")
+      expect(res.output).toContain("DATE_SANS_COMPLET=0")
+      expect(res.output).toContain("STATUT_PERIME=0")
+      expect(res.output).toContain("COMPTEUR_PERIME=0")
+    })
+
     it("should effacer dossier_validated_at si le dossier redevient incomplet", () => {
       const corps = `
         ${toutesLesPieces("approved")}
@@ -253,6 +324,31 @@ describe.skipIf(!LOCAL_DB_UP)("99078_portal_v2_socle", () => {
         ${marqueur("NB", `SELECT count(*) FROM public.artisan_reports WHERE intervention_id = ${INTERVENTION}`)}
       `
       expect(scenario(corps)).toContain("NB=2")
+    })
+
+    it("should accepter la supersession dans le BON ordre : superseded PUIS insert (constat 5)", () => {
+      // L'index ux_artisan_reports_one_open n'est pas deferrable : l'ordre inverse lève 23505
+      // (test « refuser un second rapport submitted » ci-dessus). L'ordre imposé est
+      // contractualisé dans 99078 et dans le §8.1 du contrat d'API — il est ici GARANTI.
+      const corps = `
+        INSERT INTO public.artisan_reports (id, intervention_id, artisan_id, status, version)
+        VALUES ('55555555-5555-4555-8555-555555555555', ${INTERVENTION}, ${ARTISAN}, 'submitted', 1);
+        UPDATE public.artisan_reports SET status = 'superseded', superseded_at = now()
+         WHERE id = '55555555-5555-4555-8555-555555555555';
+        INSERT INTO public.artisan_reports (id, intervention_id, artisan_id, status, version)
+        VALUES ('66666666-6666-4666-8666-666666666666', ${INTERVENTION}, ${ARTISAN}, 'submitted', 2);
+        -- superseded_by est une FK vers artisan_reports : elle ne peut être posée qu'APRÈS
+        -- l'insertion de la version suivante (vérification immédiate, index non deferrable).
+        UPDATE public.artisan_reports
+           SET superseded_by = '66666666-6666-4666-8666-666666666666'
+         WHERE id = '55555555-5555-4555-8555-555555555555';
+        ${marqueur(
+          "OUVERTS",
+          `SELECT count(*) FROM public.artisan_reports
+            WHERE intervention_id = ${INTERVENTION} AND status = 'submitted'`
+        )}
+      `
+      expect(scenario(corps)).toContain("OUVERTS=1")
     })
 
     it("should refuser un statut hors CHECK", () => {
@@ -333,7 +429,7 @@ describe.skipIf(!LOCAL_DB_UP)("99078_portal_v2_socle", () => {
       expect(res.output).toMatch(/action_type/)
     })
 
-    it("should refuser deux fois le même event_uid (idempotence du rejeu hors ligne)", () => {
+    it("should refuser deux fois le même event_uid pour le MÊME artisan (idempotence du rejeu)", () => {
       const res = runSql(
         env,
         `${FIXTURE}
@@ -344,6 +440,100 @@ describe.skipIf(!LOCAL_DB_UP)("99078_portal_v2_socle", () => {
       )
       expect(res.code).not.toBe(0)
       expect(res.output).toMatch(/ux_artisan_portal_actions_event_uid/)
+    })
+
+    it("should accepter le MÊME event_uid pour deux artisans différents (constat 6)", () => {
+      // La clé d'idempotence est générée par le téléphone : unique GLOBALEMENT, deux appareils
+      // produisant la même chaîne (« evt-1 », un compteur local) se bloquaient mutuellement, et
+      // la route — qui traite un event_uid connu comme un rejeu et répond 200 — aurait perdu
+      // silencieusement l'action du second artisan tout en lui rendant la trace du premier.
+      const corps = `
+        INSERT INTO public.artisans (id, nom, prenom, is_active)
+          VALUES ('77777777-7777-4777-8777-777777777777', 'L0-TEST-2', 'Socle', true);
+        INSERT INTO public.artisan_portal_actions (artisan_id, action_type, event_uid)
+        VALUES (${ARTISAN}, 'WORK_STARTED', 'evt-1'),
+               ('77777777-7777-4777-8777-777777777777', 'WORK_STARTED', 'evt-1');
+        ${marqueur("NB", `SELECT count(*) FROM public.artisan_portal_actions WHERE event_uid = 'evt-1'`)}
+      `
+      expect(scenario(corps)).toContain("NB=2")
+    })
+
+    it("should refuser une ligne source='crm' sans acteur (constats 7 et 20)", () => {
+      // « Acteur jamais nul des deux côtés » était une promesse de commentaire ; c'est
+      // exactement ainsi qu'artisan_audit_log a dérivé (92 % de lignes sans acteur).
+      const res = runSql(
+        env,
+        `${FIXTURE}
+         INSERT INTO public.artisan_portal_actions (artisan_id, action_type, source)
+         VALUES (${ARTISAN}, 'DOCUMENT_APPROVED', 'crm');
+         ROLLBACK;`
+      )
+      expect(res.code).not.toBe(0)
+      expect(res.output).toMatch(/artisan_portal_actions_acteur_check/)
+    })
+
+    it("should refuser un occurred_at hors bornes (constat 9)", () => {
+      // Les bornes [recorded_at − 7 j, recorded_at + 5 min] ne vivaient que dans un COMMENT :
+      // une date arbitraire remontait en tête de la timeline (index artisan_id, occurred_at DESC).
+      for (const valeur of ["now() + INTERVAL '2 hours'", "now() - INTERVAL '30 days'"]) {
+        const res = runSql(
+          env,
+          `${FIXTURE}
+           INSERT INTO public.artisan_portal_actions (artisan_id, action_type, occurred_at)
+           VALUES (${ARTISAN}, 'WORK_STARTED', ${valeur});
+           ROLLBACK;`
+        )
+        expect(res.code, `${valeur} aurait dû être refusée : ${res.output}`).not.toBe(0)
+        expect(res.output).toMatch(/artisan_portal_actions_occurred_at_check/)
+      }
+    })
+
+    it("should accepter une horloge légèrement en avance (tolérance de 5 min)", () => {
+      const corps = `
+        INSERT INTO public.artisan_portal_actions (artisan_id, action_type, occurred_at)
+        VALUES (${ARTISAN}, 'WORK_STARTED', now() + INTERVAL '2 minutes');
+        ${marqueur("NB", `SELECT count(*) FROM public.artisan_portal_actions WHERE artisan_id = ${ARTISAN}`)}
+      `
+      expect(scenario(corps)).toContain("NB=1")
+    })
+
+    it("should refuser tout UPDATE : le journal est append-only (constat 16)", () => {
+      // Le trigger est BEFORE UPDATE **seulement** : il ne gêne aucune FK ON DELETE, ce qui
+      // était l'objection d'origine — objection qui ne valait que pour DELETE, jamais pour
+      // UPDATE. Sans lui, service_role (le rôle de TOUTES les routes serveur) pouvait
+      // réécrire une ligne du journal sans laisser de trace.
+      const res = runSql(
+        env,
+        `${FIXTURE}
+         INSERT INTO public.artisan_portal_actions (id, artisan_id, action_type)
+         VALUES ('88888888-8888-4888-8888-888888888888', ${ARTISAN}, 'WORK_STARTED');
+         UPDATE public.artisan_portal_actions SET payload = '{"triche":true}'::jsonb
+          WHERE id = '88888888-8888-4888-8888-888888888888';
+         ROLLBACK;`
+      )
+      expect(res.code).not.toBe(0)
+      expect(res.output).toMatch(/append-only/)
+    })
+
+    it("should garder la trace quand l'intervention est supprimée (constats 8 et 16)", () => {
+      // ON DELETE SET NULL, pas CASCADE : la preuve d'un prix accepté ou d'une heure de
+      // démarrage ne doit pas disparaître avec l'intervention que le CRM supprime.
+      const corps = `
+        INSERT INTO public.artisan_portal_actions (artisan_id, intervention_id, action_type, payload)
+        VALUES (${ARTISAN}, ${INTERVENTION}, 'PRICE_ACCEPTED',
+                '{"intervention":{"id_inter":"DEMO-001"},"amount":120}'::jsonb);
+        -- intervention_audit_log référence l'intervention sans ON DELETE : la suppression
+        -- réelle passe d'abord par la purge du journal d'audit (vérifié ici).
+        DELETE FROM public.intervention_audit_log WHERE intervention_id = ${INTERVENTION};
+        DELETE FROM public.interventions WHERE id = ${INTERVENTION};
+        ${marqueur(
+          "SURVIT",
+          `SELECT count(*) || '|' || COALESCE(max(intervention_id::text),'NULL') || '|' ||
+                  max(payload -> 'intervention' ->> 'id_inter')
+             FROM public.artisan_portal_actions WHERE artisan_id = ${ARTISAN}`
+        )}
+      `
+      expect(scenario(corps)).toContain("SURVIT=1|NULL|DEMO-001")
     })
 
     it("should accepter plusieurs actions sans event_uid (index unique partiel)", () => {

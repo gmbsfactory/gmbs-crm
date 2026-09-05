@@ -1,3 +1,20 @@
+/**
+ * Types générés depuis la BASE LOCALE (branche `visiondeposedocs`, 2026-09-05, lot L0),
+ * avec les migrations jusqu'à `99082` appliquées.
+ *
+ * ⚠️ La base locale n'est pas identique à la production. Quatre objets présents en
+ * production sont VOLONTAIREMENT absents de ce fichier — ne les recréez pas et ne vous
+ * étonnez pas d'un type manquant (constat 11 de la revue du socle) :
+ *   - `artisan_report_photos` : table de production (00069 de depose_docs) référencée par
+ *     zéro ligne de code. Décision de la spécification §3.0 : « laissée orpheline ».
+ *   - `plugin_subscriptions` : table de production hors périmètre CRM.
+ *   - `generate_artisan_portal_token` / `validate_artisan_portal_token` : RPC prod-only, que
+ *     `99076:85-90` révoque justement « si elles existent ».
+ * Aucun code du dépôt ne les référence (vérifié : `app/`, `src/`, `supabase/`, `tests/`).
+ *
+ * Régénération : `supabase gen types typescript --local > src/lib/database.types.ts`
+ * (JAMAIS `--linked` / `--project-ref` : la production ne doit pas être touchée).
+ */
 export type Json =
   | string
   | number
