@@ -282,3 +282,37 @@ describe('startWork', () => {
     expect(payload.occurred_at_declared).toBe('2019-01-01T00:00:00.000Z')
   })
 })
+
+describe('startWork — correction du gestionnaire', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    h.update.mockResolvedValue({ id: INTERVENTION })
+  })
+
+  it('should keep a back-dated start entered by the manager, and bound the journal only', async () => {
+    const planned = client({})
+    const veille = '2026-08-20T07:00:00.000Z'
+    const result = await call(planned, { source: 'crm', envelope: null, startedAt: veille })
+
+    expect(result.status).toBe(200)
+    if (result.status !== 200) throw new Error('unreachable')
+    // Le fait garde la date du gestionnaire…
+    expect(result.body.work).toEqual({ started_at: veille, from: 'crm' })
+    // …et le journal reste dans les bornes du CHECK de 99079, la valeur brute
+    // conservée dans le payload.
+    const journal = planned.calls.find((c) => c.table === 'artisan_portal_actions' && c.op === 'insert')
+    const payload = journal?.payload as { occurred_at: string; payload: Record<string, unknown> }
+    expect(payload.payload.occurred_at_declared).toBe(veille)
+    expect(payload.payload.clock_skew).toBe(true)
+    expect(new Date(payload.occurred_at).getTime()).toBeGreaterThan(new Date(veille).getTime())
+  })
+
+  it('should recale an adrift phone clock instead of trusting it for the fact', async () => {
+    const planned = client({})
+    const result = await call(planned, {
+      envelope: { event_uid: 'evt-9', occurred_at_declared: '2019-01-01T00:00:00.000Z' },
+    })
+    if (result.status !== 200) throw new Error('unreachable')
+    expect(new Date(result.body.work.started_at).getFullYear()).toBeGreaterThan(2019)
+  })
+})

@@ -187,8 +187,18 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
   }
 
   // 4. LE FAIT, D'ABORD. Il est écrit avant toute tentative de projection.
-  const clock = normalizeOccurredAt(params.startedAt ?? envelope?.occurred_at_declared ?? null)
-  const startedAt = clock.occurred_at
+  const declaree = params.startedAt ?? envelope?.occurred_at_declared ?? null
+  const clock = normalizeOccurredAt(declaree)
+  // Le FAIT et sa TRACE n'ont pas les mêmes bornes. `occurred_at` du journal est
+  // borné à [now − 7 j, now + 5 min] par le CHECK de 99079 ; `work_started_at`,
+  // lui, doit accepter la correction d'un gestionnaire — « il avait démarré le
+  // 20 août », un cas de rattrapage réel. Côté portail, en revanche, on garde la
+  // valeur recalée : l'horloge d'un téléphone n'est pas une source d'autorité.
+  const saisieGestionnaire = source === 'crm' && params.startedAt ? new Date(params.startedAt) : null
+  const startedAt =
+    saisieGestionnaire && !Number.isNaN(saisieGestionnaire.getTime())
+      ? saisieGestionnaire.toISOString()
+      : clock.occurred_at
   const { error: updateError } = await supabase
     .from('intervention_artisans')
     .update({
