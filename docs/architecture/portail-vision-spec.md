@@ -1303,6 +1303,15 @@ SST ≥ 0, consigne artisan, nom client, téléphone client, date prévue — pl
 > « **Démarré · n champs manquants** » en liste et en kanban, avec la même mécanique de priorité que
 > le badge « À vérifier » dans `getStatusDisplay`.
 
+> ⚠️ **Rectifié par la décision client du 2026-09-05, §10.1.** L'arbitrage ci-dessus — « le statut
+> bascule même si la fiche est incomplète » — **n'est plus celui qui s'applique**. Le CRM garde la
+> main sur les statuts : la bascule `ACCEPTE → INTER_EN_COURS` n'a lieu **que** si les règles
+> d'entrée sont réunies. Sinon le fait est enregistré, la réponse reste `200` avec
+> `status_advanced: false` et `missing_fields`, et le statut ne bouge pas. Tout le reste de cette
+> section tient : les deux gardes de recevabilité, le badge en liste et en kanban, la durée réelle.
+> Ce qui change, c'est que le badge signale un statut **resté `ACCEPTE`**, et non un
+> `INTER_EN_COURS` incomplet.
+
 **Justification** : ces 14 champs sont une discipline de saisie CRM, pas une précondition du travail
 physique. Et **aucun chemin serveur ne les vérifie déjà aujourd'hui** — `transitionStatus` n'appelle
 jamais `validateTransition`, il ne fait qu'`assertBusinessRules` (`server.ts:80-84`), c'est-à-dire
@@ -1310,13 +1319,14 @@ jamais `validateTransition`, il ne fait qu'`assertBusinessRules` (`server.ts:80-
 qui appelle. On n'introduit donc **aucune** régression de contrôle : on ajoute un quatrième chemin
 d'écriture de statut, et c'est le **seul des quatre à porter une garde de transition explicite**.
 
-**À annoncer au client, pas à découvrir en recette** : il y aura des interventions `INTER_EN_COURS`
-avec des champs manquants. Le badge est la contrepartie ; il rend la dette visible sans jamais
-bloquer l'artisan.
+**À annoncer au client, pas à découvrir en recette** : ~~il y aura des interventions
+`INTER_EN_COURS` avec des champs manquants~~ — depuis §10.1, il y aura au contraire des
+interventions **restées `ACCEPTE`** alors que le chantier a commencé. Le badge est la contrepartie ;
+il rend la dette visible sans jamais bloquer l'artisan.
 
 **Effet de bord souhaitable, obtenu gratuitement** : `computeDueDate` (`server.ts:69-77`) pose
 `due_date = now + 7 jours` au passage en `INTER_EN_COURS` sur ce chemin, comme le Kanban (le modal,
-lui, ne le fait pas).
+lui, ne le fait pas). Il ne joue désormais que sur les fiches complètes, celles qui basculent.
 
 **Durée réelle** = `artisan_reports.submitted_at − artisan_reports.started_at`. Explicitement **pas**
 `interventions.date_termine` : elle n'est alimentée par aucun trigger ni aucune route, seulement

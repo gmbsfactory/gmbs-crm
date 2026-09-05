@@ -188,8 +188,15 @@ l'un des sept états du parcours (`resolveAssignmentState`) :
 | `prix_propose` | « Prix de 320 € proposé. En attente de la réponse de Karim B. » |
 | `prix_refuse` | Bandeau rouge, motif du refus, bouton « Proposer à un autre artisan » |
 | `accepte_non_demarre` | « Accepté le … (application). Chantier non démarré. » + avertissement de dérive du montant |
-| `demarre` | « Démarré le … — en cours depuis 5 h 22 » (compteur vivant, rafraîchi chaque minute) ; si le statut est encore `ACCEPTE`, badge violet **« Démarré · n champs manquants »** et la liste |
+| `demarre` | « Démarré le … — en cours depuis 5 h 22 » (compteur vivant, rafraîchi chaque minute) ; si le statut est encore `ACCEPTE`, badge **ambre** « Démarré · n champs manquants » et la liste des champs |
 | `rapport_recu` | Le rapport, avec son bandeau de chantier |
+
+- **Badge « Démarré · n champs manquants »** : il ne vit **pas** que dans ce panneau. Le libellé et
+  la couleur viennent de `src/lib/interventions/portal-work-status.ts`, seule source, partagée avec
+  la cellule de statut de la liste (`StatusCell` → `getStatusDisplay`) et la carte de kanban. Il
+  paraît dès que `interventions.portal_work_started_at` est posée et que le statut est resté
+  `ACCEPTE` : le CRM garde la main sur les statuts (spec §10.1), l'artisan a démarré, la fiche est
+  incomplète. Un rapport en attente (« À vérifier », violet) passe devant.
 
 - **Bandeau de chantier** : `Démarré 12 sept. 08:40 · Envoyé 14:02 · Durée réelle 5 h 22 (déclarée : 5 h)`.
   `duree_minutes` est **déclaratif**, `submitted_at − started_at` est le fait : les deux sont
