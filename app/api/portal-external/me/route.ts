@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { authenticatePortalRequest } from '@/lib/portal-external/auth'
 import { portalInternalError } from '@/lib/portal-external/http'
-import { PORTAL_ONGOING_STATUSES, listPortalInterventions } from '@/lib/portal-external/interventions'
+import { listPortalInterventions, type PortalMissionGroup } from '@/lib/portal-external/interventions'
 import { REQUIRED_DOCUMENT_KINDS, countRequiredDocuments } from '@/lib/artisans/dossierStatus'
 
 export const runtime = 'nodejs'
@@ -22,11 +22,16 @@ export async function GET(request: Request) {
       supabase.from('artisan_attachments').select('id, artisan_id, kind, url').eq('artisan_id', artisan.id),
     ])
 
-    const ongoing = PORTAL_ONGOING_STATUSES as readonly string[]
+    // Compteurs recalés sur les TROIS GROUPES de l'application (§6.3), et non plus
+    // sur une liste de statuts : « en cours » comptait `PORTAL_ONGOING_STATUSES`,
+    // ce qui laissait `STAND_BY` hors compte et n'avait aucune case pour les
+    // missions « à accepter ». Le groupe est calculé côté CRM (principe P1).
+    const parGroupe = (groupe: PortalMissionGroup) => interventions.filter((i) => i.groupe === groupe).length
     const counters = {
       missions_total: interventions.length,
-      missions_terminees: interventions.filter((i) => i.statut_code === 'INTER_TERMINEE').length,
-      missions_en_cours: interventions.filter((i) => ongoing.includes(i.statut_code ?? '')).length,
+      missions_a_accepter: parGroupe('a_accepter'),
+      missions_en_cours: parGroupe('en_cours'),
+      missions_terminees: parGroupe('terminee'),
     }
 
     return NextResponse.json({
