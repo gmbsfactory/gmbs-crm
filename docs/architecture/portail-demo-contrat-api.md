@@ -354,3 +354,49 @@ Le bloc de démarrage reste monté sur `ACCEPTE`, `INTER_EN_COURS` et `SAV` tant
 **Ce que la moitié portail de L1 ne fait pas** : les totaux mensuels de l'onglet « Terminées » et l'écran « Mes documents » relèvent de **L6** ; les versions de rapport modifiables côté portail, de **L3** ; l'événement SSE nommé `price` / `work` et sa doublure dans le SSE mock, de **L8**.
 
 Tests livrés : `portal_gmbs/tests/unit/api/price-start-proxies.test.ts` (en-têtes, relais des codes, `409` + `current_amount`, `401` sans cookie, `502`/`503`, encodage de l'id), `tests/unit/mock/price-start.test.ts`, `tests/unit/lib/price.test.ts`, `tests/unit/components/mission-price-panel.test.tsx` (confirmation obligatoire, verrou optimiste, refus, réponse non reprise), `tests/unit/components/mission-start-panel.test.tsx` (confirmation, **aucune erreur sur `status_advanced: false`**), `tests/unit/components/mission-detail-screen.test.tsx`. Doublure de test étendue : `tests/helpers/portal-api.tsx` expose `setNextError` pour rejouer un geste après un `409`.
+
+---
+
+### 8.9 Lot L3 — versions du rapport : modification, remplacement, historique
+
+Aucune migration : le socle (`99078`) porte déjà `superseded` / `superseded_at` / `superseded_by`, la colonne `started_at` et l'index partiel `ux_artisan_reports_one_open`.
+
+**Règle de version (spécification §7.3), appliquée telle quelle**
+
+> Une nouvelle version est permise si aucun rapport `submitted` n'est en attente, **et** que le dernier rapport est `rejected`, **ou** que l'intervention est repassée par `INTER_EN_COURS` ou `SAV` depuis la validation.
+
+Le repassage est lu dans `intervention_status_transitions` (`to_status_code ∈ {INTER_EN_COURS, SAV}` et `transition_date > reviewed_at`), jamais sur `interventions.updated_at`, que le moindre commentaire bouscule (trigger `00082`). Sans date de décision lisible, la réponse est « non rouvert » : mieux vaut un `409` que l'ouverture d'une version sur un rapport que personne n'a rouvert. Toute la règle tient dans une fonction pure, `decideNewVersion`.
+
+**Routes CRM**
+
+| Méthode et chemin | Corps | Réponse | Erreurs |
+|---|---|---|---|
+| `POST /me/interventions/{id}/report` | inchangé **+ `replaces?`** (uuid du rapport en attente) **+ enveloppe facultative** | `201 {report}` ; rejeu du même `portal_report_id` ⇒ `200` | `409 report_pending` (un rapport attend, sans `replaces`) · `409 report_not_replaceable` (`replaces` ne désigne pas le rapport en attente, ou le gestionnaire a tranché entre-temps) · `409 report_already_approved` (validé, rien de rouvert) |
+| `PATCH /me/interventions/{id}/report` | **tous champs facultatifs**, au moins un ; enveloppe facultative | `200 {report}` — **même version, même identifiant** | `400 no field to update` · `404` (aucun rapport) · `409 report_already_approved` · `409 report_not_editable` (rapport refusé : la correction passe par une nouvelle version) |
+| `GET /me/interventions/{id}/reports` | — | `200 {reports:[{id, version, status, submitted_at, started_at, reviewed_at, review_comment, superseded_at, photos_count, is_current}], current_report_id}` | `404` si l'artisan n'est pas affecté |
+
+Les corps d'erreur portent désormais des **codes** (`report_pending`…) et non des phrases : le libellé se calcule côté portail, comme pour le prix (P1). Deux messages historiques changent en conséquence — `Report already submitted` devient `report_pending`, `Report already approved` devient `report_already_approved`.
+
+**Supersession — ordre d'écriture imposé.** PostgREST n'ouvre pas de transaction multi-requêtes, et l'index partiel n'est pas différable. `submitPortalReport` écrit donc, dans cet ordre : (1) `UPDATE … SET status='superseded' WHERE id=<v(n)> AND status='submitted'` — zéro ligne touchée ⇒ `409 report_not_replaceable` ; (2) `INSERT` de v(n+1) ; (3) `UPDATE … SET superseded_by=<v(n+1)>`, après l'insertion parce que c'est une clé étrangère. **Si l'insertion échoue, l'étape 1 est compensée** (`superseded` → `submitted`) : sans cela, le rapport en attente de l'artisan disparaîtrait pour cause de disque plein.
+
+**Deux artisans** : les versions sont lues par couple `(intervention, artisan)`. Le rapport en attente de l'un ne bloque jamais l'autre — l'index partiel porte sur le couple, ce que vérifie un test d'intégration contre la base locale.
+
+**`started_at`** est recopié depuis `intervention_artisans.work_started_at` à l'envoi : la durée réelle (`submitted_at − started_at`) reste juste même si le gestionnaire corrige ensuite l'heure de démarrage.
+
+**Journal** : `REPORT_SUBMITTED` pour une version neuve, `REPORT_REPLACED` pour un remplacement **et** pour un `PATCH` (`payload.mode = 'patch'`, `payload.fields` = champs touchés — l'événement « rapport modifié » du §1.3, sans historique champ à champ). L'enveloppe `{event_uid, occurred_at}` est **acceptée mais facultative** sur ces deux routes : `portal_report_id` porte déjà l'idempotence de l'envoi depuis la première version du portail, et l'exiger casserait les téléphones non mis à jour.
+
+**Ce que l'artisan voit** (spécification §6.5)
+
+| État | Écran |
+|---|---|
+| rapport en attente | bandeau « Envoyé, en attente de validation (version n) », **« Modifier mon rapport »** (renvoi complet avec `replaces` ⇒ v(n+1), la précédente devient « Remplacée ») |
+| photos envoyées après le rapport | **« Joindre N nouvelle(s) photo(s) »** ⇒ `PATCH {attachment_ids}`, **sans** nouvelle version : ajouter une photo n'est pas refaire un rapport |
+| rapport refusé | motif du gestionnaire **en entier**, puis « Corriger et renvoyer » ⇒ `POST` sans `replaces` (la version refusée appartient à l'historique) |
+| rapport validé | lecture seule, **aucun bouton** — proposer un geste qui recevrait un `409` est pire que ne rien proposer |
+| historique | carte « Versions du rapport » : `Version 3 · En attente`, `Version 2 · Remplacée`, `Version 1 · Correction demandée` avec le commentaire déplié |
+
+Libellé de `superseded` : **« Remplacée »** des deux côtés (`report-parts.tsx` du CRM, `reportVersionLabel` du portail). Deux vocabulaires pour un même état, c'est un appel téléphonique au gestionnaire.
+
+**Mode mock** : `latestReport` cesse d'aplatir (`MockState.reports` est déjà un tableau par intervention) et devient `currentReport` — la version en attente, sinon la plus récente, exactement comme `pickPortalReport` côté CRM. `replaces`, `PATCH` et `GET …/reports` y rejouent les mêmes gardes et les mêmes codes. La réouverture après validation s'y lit dans `MockState.reopenedAt`, qui tient lieu de journal des transitions : vide par défaut, donc **un rapport validé est verrouillé en démo** — ce qui est précisément le comportement à montrer.
+
+**Tests livrés** — CRM : `tests/unit/lib/portal-external/report.test.ts` (règle pure et validation, 23), `tests/unit/api/portal-external/report.test.ts` (29, dont refus ⇒ v2, validé sans réouverture ⇒ `409`, réouverture ⇒ v2, SAV, ordre d'écriture de la supersession, compensation, deux artisans, journal), `tests/unit/api/portal-external/reports.test.ts` (5), `tests/integration/portal/l3-report-versions.test.ts` (5, base locale : un seul `submitted` par couple, deux artisans indépendants, ordre inverse ⇒ `23505`). Portail : `tests/unit/components/mission-report-tab.test.tsx` (9), `tests/unit/mock/report-versions.test.ts` (16), `tests/unit/api/report-proxies.test.ts` (8), `tests/unit/lib/status-report.test.ts` (5).
