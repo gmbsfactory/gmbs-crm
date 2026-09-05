@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
-  }
   public: {
     Tables: {
       agencies: {
@@ -166,6 +161,109 @@ export type Database = {
           },
         ]
       }
+      app_update_views: {
+        Row: {
+          acknowledged_at: string | null
+          id: string
+          update_id: string
+          user_id: string
+          viewed_at: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          id?: string
+          update_id: string
+          user_id: string
+          viewed_at?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          id?: string
+          update_id?: string
+          user_id?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_update_views_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "app_updates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_update_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_update_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      app_updates: {
+        Row: {
+          audience: string[]
+          content: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          published_at: string | null
+          severity: string
+          status: string
+          target_user_ids: string[] | null
+          title: string
+          version: string
+        }
+        Insert: {
+          audience?: string[]
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          published_at?: string | null
+          severity?: string
+          status?: string
+          target_user_ids?: string[] | null
+          title: string
+          version: string
+        }
+        Update: {
+          audience?: string[]
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          published_at?: string | null
+          severity?: string
+          status?: string
+          target_user_ids?: string[] | null
+          title?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_updates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_updates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       artisan_absences: {
         Row: {
           artisan_id: string | null
@@ -228,8 +326,14 @@ export type Database = {
           filename: string | null
           id: string
           kind: string
+          metadata: Json | null
           mime_preferred: string | null
           mime_type: string | null
+          review_comment: string | null
+          review_status: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          updated_at: string | null
           url: string
         }
         Insert: {
@@ -245,8 +349,14 @@ export type Database = {
           filename?: string | null
           id?: string
           kind: string
+          metadata?: Json | null
           mime_preferred?: string | null
           mime_type?: string | null
+          review_comment?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          updated_at?: string | null
           url: string
         }
         Update: {
@@ -262,8 +372,14 @@ export type Database = {
           filename?: string | null
           id?: string
           kind?: string
+          metadata?: Json | null
           mime_preferred?: string | null
           mime_type?: string | null
+          review_comment?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          updated_at?: string | null
           url?: string
         }
         Relationships: [
@@ -294,6 +410,106 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_user_permissions_debug"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "artisan_attachments_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_attachments_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      artisan_audit_log: {
+        Row: {
+          action_type: string
+          actor_code: string | null
+          actor_color: string | null
+          actor_display: string | null
+          actor_user_id: string | null
+          artisan_id: string
+          changed_fields: string[] | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          new_values: Json | null
+          occurred_at: string
+          old_values: Json | null
+          related_entity_id: string | null
+          related_entity_type: string | null
+          source: string | null
+        }
+        Insert: {
+          action_type: string
+          actor_code?: string | null
+          actor_color?: string | null
+          actor_display?: string | null
+          actor_user_id?: string | null
+          artisan_id: string
+          changed_fields?: string[] | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_values?: Json | null
+          occurred_at?: string
+          old_values?: Json | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          source?: string | null
+        }
+        Update: {
+          action_type?: string
+          actor_code?: string | null
+          actor_color?: string | null
+          actor_display?: string | null
+          actor_user_id?: string | null
+          artisan_id?: string
+          changed_fields?: string[] | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_values?: Json | null
+          occurred_at?: string
+          old_values?: Json | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artisan_audit_log_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_audit_log_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "artisan_audit_log_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_audit_log_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans_search_mv"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -343,6 +559,104 @@ export type Database = {
           },
         ]
       }
+      artisan_portal_actions: {
+        Row: {
+          action_type: string
+          actor_user_id: string | null
+          artisan_id: string
+          attachment_id: string | null
+          created_at: string
+          event_uid: string | null
+          id: string
+          intervention_id: string | null
+          occurred_at: string
+          payload: Json
+          recorded_at: string
+          report_id: string | null
+          source: string
+        }
+        Insert: {
+          action_type: string
+          actor_user_id?: string | null
+          artisan_id: string
+          attachment_id?: string | null
+          created_at?: string
+          event_uid?: string | null
+          id?: string
+          intervention_id?: string | null
+          occurred_at?: string
+          payload?: Json
+          recorded_at?: string
+          report_id?: string | null
+          source?: string
+        }
+        Update: {
+          action_type?: string
+          actor_user_id?: string | null
+          artisan_id?: string
+          attachment_id?: string | null
+          created_at?: string
+          event_uid?: string | null
+          id?: string
+          intervention_id?: string | null
+          occurred_at?: string
+          payload?: Json
+          recorded_at?: string
+          report_id?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artisan_portal_actions_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_portal_actions_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "artisan_portal_actions_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_portal_actions_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_portal_actions_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "interventions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_portal_actions_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "interventions_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_portal_actions_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "artisan_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       artisan_portal_tokens: {
         Row: {
           artisan_id: string
@@ -352,7 +666,9 @@ export type Database = {
           id: string
           is_active: boolean | null
           last_accessed_at: string | null
-          token: string
+          last_used_at: string | null
+          token: string | null
+          token_hash: string | null
         }
         Insert: {
           artisan_id: string
@@ -362,7 +678,9 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_accessed_at?: string | null
-          token: string
+          last_used_at?: string | null
+          token?: string | null
+          token_hash?: string | null
         }
         Update: {
           artisan_id?: string
@@ -372,7 +690,9 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_accessed_at?: string | null
-          token?: string
+          last_used_at?: string | null
+          token?: string | null
+          token_hash?: string | null
         }
         Relationships: [
           {
@@ -387,135 +707,152 @@ export type Database = {
             columns: ["artisan_id"]
             isOneToOne: false
             referencedRelation: "artisans_search_mv"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      artisan_report_photos: {
-        Row: {
-          artisan_id: string
-          comment: string | null
-          created_at: string | null
-          filename: string
-          id: string
-          intervention_id: string
-          mime_type: string | null
-          portal_photo_id: string | null
-          report_id: string | null
-          size_bytes: number | null
-          storage_path: string
-          synced_from_portal: boolean | null
-        }
-        Insert: {
-          artisan_id: string
-          comment?: string | null
-          created_at?: string | null
-          filename: string
-          id?: string
-          intervention_id: string
-          mime_type?: string | null
-          portal_photo_id?: string | null
-          report_id?: string | null
-          size_bytes?: number | null
-          storage_path: string
-          synced_from_portal?: boolean | null
-        }
-        Update: {
-          artisan_id?: string
-          comment?: string | null
-          created_at?: string | null
-          filename?: string
-          id?: string
-          intervention_id?: string
-          mime_type?: string | null
-          portal_photo_id?: string | null
-          report_id?: string | null
-          size_bytes?: number | null
-          storage_path?: string
-          synced_from_portal?: boolean | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "artisan_report_photos_artisan_id_fkey"
-            columns: ["artisan_id"]
-            isOneToOne: false
-            referencedRelation: "artisans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "artisan_report_photos_artisan_id_fkey"
-            columns: ["artisan_id"]
-            isOneToOne: false
-            referencedRelation: "artisans_search_mv"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "artisan_report_photos_intervention_id_fkey"
-            columns: ["intervention_id"]
-            isOneToOne: false
-            referencedRelation: "interventions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "artisan_report_photos_intervention_id_fkey"
-            columns: ["intervention_id"]
-            isOneToOne: false
-            referencedRelation: "interventions_search_mv"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "artisan_report_photos_report_id_fkey"
-            columns: ["report_id"]
-            isOneToOne: false
-            referencedRelation: "artisan_reports"
             referencedColumns: ["id"]
           },
         ]
       }
       artisan_reports: {
         Row: {
+          anomalies: string | null
           artisan_id: string
-          content: string
+          attachment_ids: string[] | null
+          client_present: boolean | null
+          content: string | null
           created_at: string | null
+          duree_minutes: number | null
           id: string
           intervention_id: string
+          materiel_utilise: string | null
           metadata: Json | null
           photo_ids: string[] | null
           portal_report_id: string | null
-          status: string | null
+          reste_a_faire: boolean | null
+          reste_a_faire_detail: string | null
+          review_comment: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          started_at: string | null
+          status: string
           submitted_at: string | null
+          submitted_from: string | null
+          superseded_at: string | null
+          superseded_by: string | null
           synced_from_portal: boolean | null
+          travaux_realises: string | null
           updated_at: string | null
+          version: number
         }
         Insert: {
+          anomalies?: string | null
           artisan_id: string
-          content: string
+          attachment_ids?: string[] | null
+          client_present?: boolean | null
+          content?: string | null
           created_at?: string | null
+          duree_minutes?: number | null
           id?: string
           intervention_id: string
+          materiel_utilise?: string | null
           metadata?: Json | null
           photo_ids?: string[] | null
           portal_report_id?: string | null
-          status?: string | null
+          reste_a_faire?: boolean | null
+          reste_a_faire_detail?: string | null
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          started_at?: string | null
+          status?: string
           submitted_at?: string | null
+          submitted_from?: string | null
+          superseded_at?: string | null
+          superseded_by?: string | null
           synced_from_portal?: boolean | null
+          travaux_realises?: string | null
           updated_at?: string | null
+          version?: number
         }
         Update: {
+          anomalies?: string | null
           artisan_id?: string
-          content?: string
+          attachment_ids?: string[] | null
+          client_present?: boolean | null
+          content?: string | null
           created_at?: string | null
+          duree_minutes?: number | null
           id?: string
           intervention_id?: string
+          materiel_utilise?: string | null
           metadata?: Json | null
           photo_ids?: string[] | null
           portal_report_id?: string | null
-          status?: string | null
+          reste_a_faire?: boolean | null
+          reste_a_faire_detail?: string | null
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          started_at?: string | null
+          status?: string
           submitted_at?: string | null
+          submitted_from?: string | null
+          superseded_at?: string | null
+          superseded_by?: string | null
           synced_from_portal?: boolean | null
+          travaux_realises?: string | null
           updated_at?: string | null
+          version?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "artisan_reports_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_reports_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_reports_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "interventions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_reports_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "interventions_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_reports_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_reports_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "artisan_reports_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "artisan_reports"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       artisan_status_history: {
         Row: {
@@ -598,6 +935,7 @@ export type Database = {
       }
       artisan_statuses: {
         Row: {
+          abbreviation: string | null
           code: string
           color: string | null
           id: string
@@ -606,6 +944,7 @@ export type Database = {
           sort_order: number | null
         }
         Insert: {
+          abbreviation?: string | null
           code: string
           color?: string | null
           id?: string
@@ -614,6 +953,7 @@ export type Database = {
           sort_order?: number | null
         }
         Update: {
+          abbreviation?: string | null
           code?: string
           color?: string | null
           id?: string
@@ -673,8 +1013,11 @@ export type Database = {
           code_postal_intervention: string | null
           code_postal_siege_social: string | null
           created_at: string | null
+          created_by: string | null
           date_ajout: string | null
           departement: number | null
+          dossier_validated_at: string | null
+          dossier_validated_by: string | null
           email: string | null
           gestionnaire_id: string | null
           iban: string | null
@@ -684,9 +1027,11 @@ export type Database = {
           is_active: boolean | null
           nom: string | null
           numero_associe: string | null
+          pieces_a_verifier: number
           plain_nom: string | null
           prenom: string | null
           raison_sociale: string | null
+          search_vector: unknown
           siret: string | null
           statut_dossier: string | null
           statut_id: string | null
@@ -695,6 +1040,7 @@ export type Database = {
           telephone: string | null
           telephone2: string | null
           updated_at: string | null
+          updated_by: string | null
           ville_intervention: string | null
           ville_siege_social: string | null
         }
@@ -704,8 +1050,11 @@ export type Database = {
           code_postal_intervention?: string | null
           code_postal_siege_social?: string | null
           created_at?: string | null
+          created_by?: string | null
           date_ajout?: string | null
           departement?: number | null
+          dossier_validated_at?: string | null
+          dossier_validated_by?: string | null
           email?: string | null
           gestionnaire_id?: string | null
           iban?: string | null
@@ -715,9 +1064,11 @@ export type Database = {
           is_active?: boolean | null
           nom?: string | null
           numero_associe?: string | null
+          pieces_a_verifier?: number
           plain_nom?: string | null
           prenom?: string | null
           raison_sociale?: string | null
+          search_vector?: unknown
           siret?: string | null
           statut_dossier?: string | null
           statut_id?: string | null
@@ -726,6 +1077,7 @@ export type Database = {
           telephone?: string | null
           telephone2?: string | null
           updated_at?: string | null
+          updated_by?: string | null
           ville_intervention?: string | null
           ville_siege_social?: string | null
         }
@@ -735,8 +1087,11 @@ export type Database = {
           code_postal_intervention?: string | null
           code_postal_siege_social?: string | null
           created_at?: string | null
+          created_by?: string | null
           date_ajout?: string | null
           departement?: number | null
+          dossier_validated_at?: string | null
+          dossier_validated_by?: string | null
           email?: string | null
           gestionnaire_id?: string | null
           iban?: string | null
@@ -746,9 +1101,11 @@ export type Database = {
           is_active?: boolean | null
           nom?: string | null
           numero_associe?: string | null
+          pieces_a_verifier?: number
           plain_nom?: string | null
           prenom?: string | null
           raison_sociale?: string | null
+          search_vector?: unknown
           siret?: string | null
           statut_dossier?: string | null
           statut_id?: string | null
@@ -757,10 +1114,25 @@ export type Database = {
           telephone?: string | null
           telephone2?: string | null
           updated_at?: string | null
+          updated_by?: string | null
           ville_intervention?: string | null
           ville_siege_social?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "artisans_dossier_validated_by_fkey"
+            columns: ["dossier_validated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisans_dossier_validated_by_fkey"
+            columns: ["dossier_validated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "artisans_gestionnaire_id_fkey"
             columns: ["gestionnaire_id"]
@@ -858,6 +1230,88 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      bilan_point_replies: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          point_id: string
+          user_id: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          point_id: string
+          user_id?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          point_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bilan_point_replies_point_id_fkey"
+            columns: ["point_id"]
+            isOneToOne: false
+            referencedRelation: "bilan_points"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bilan_point_replies_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bilan_point_replies_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      bilan_points: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          ordre: number
+          origine: string | null
+          reponse_type: string
+          statut: string
+          titre: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          ordre?: number
+          origine?: string | null
+          reponse_type?: string
+          statut?: string
+          titre: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          ordre?: number
+          origine?: string | null
+          reponse_type?: string
+          statut?: string
+          titre?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       billing_state: {
         Row: {
@@ -1158,6 +1612,135 @@ export type Database = {
           },
         ]
       }
+      crm_presence_settings: {
+        Row: {
+          id: boolean
+          idle_after_minutes: number
+          offline_after_minutes: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          idle_after_minutes?: number
+          offline_after_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          idle_after_minutes?: number
+          offline_after_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_presence_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_presence_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      data_operation_log: {
+        Row: {
+          actor_code: string | null
+          actor_color: string | null
+          actor_display: string | null
+          actor_user_id: string | null
+          completed_at: string | null
+          created_at: string
+          dry_run: boolean | null
+          error_count: number | null
+          file_hash: string | null
+          file_name: string | null
+          filters: Json
+          id: string
+          inserted_count: number | null
+          metadata: Json
+          mode: string | null
+          operation_type: string
+          resource_type: string
+          skipped_count: number | null
+          started_at: string
+          status: string
+          total_count: number | null
+          updated_count: number | null
+        }
+        Insert: {
+          actor_code?: string | null
+          actor_color?: string | null
+          actor_display?: string | null
+          actor_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          dry_run?: boolean | null
+          error_count?: number | null
+          file_hash?: string | null
+          file_name?: string | null
+          filters?: Json
+          id?: string
+          inserted_count?: number | null
+          metadata?: Json
+          mode?: string | null
+          operation_type: string
+          resource_type?: string
+          skipped_count?: number | null
+          started_at?: string
+          status?: string
+          total_count?: number | null
+          updated_count?: number | null
+        }
+        Update: {
+          actor_code?: string | null
+          actor_color?: string | null
+          actor_display?: string | null
+          actor_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          dry_run?: boolean | null
+          error_count?: number | null
+          file_hash?: string | null
+          file_name?: string | null
+          filters?: Json
+          id?: string
+          inserted_count?: number | null
+          metadata?: Json
+          mode?: string | null
+          operation_type?: string
+          resource_type?: string
+          skipped_count?: number | null
+          started_at?: string
+          status?: string
+          total_count?: number | null
+          updated_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_operation_log_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_operation_log_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       email_logs: {
         Row: {
           artisan_id: string | null
@@ -1171,6 +1754,7 @@ export type Database = {
           recipient_email: string
           sent_at: string | null
           sent_by: string | null
+          smtp_message_id: string | null
           status: string
           subject: string
         }
@@ -1186,6 +1770,7 @@ export type Database = {
           recipient_email: string
           sent_at?: string | null
           sent_by?: string | null
+          smtp_message_id?: string | null
           status: string
           subject: string
         }
@@ -1201,6 +1786,7 @@ export type Database = {
           recipient_email?: string
           sent_at?: string | null
           sent_by?: string | null
+          smtp_message_id?: string | null
           status?: string
           subject?: string
         }
@@ -1319,7 +1905,20 @@ export type Database = {
           id: string
           intervention_id: string | null
           is_primary: boolean | null
+          paid_at: string | null
+          payment_status: string
+          payment_updated_at: string | null
+          payment_updated_by: string | null
+          price_accepted_amount: number | null
+          price_refused_reason: string | null
+          price_responded_at: string | null
+          price_response: string | null
+          price_response_by: string | null
+          price_response_source: string | null
           role: string | null
+          work_started_at: string | null
+          work_started_by: string | null
+          work_started_from: string | null
         }
         Insert: {
           artisan_id?: string | null
@@ -1328,7 +1927,20 @@ export type Database = {
           id?: string
           intervention_id?: string | null
           is_primary?: boolean | null
+          paid_at?: string | null
+          payment_status?: string
+          payment_updated_at?: string | null
+          payment_updated_by?: string | null
+          price_accepted_amount?: number | null
+          price_refused_reason?: string | null
+          price_responded_at?: string | null
+          price_response?: string | null
+          price_response_by?: string | null
+          price_response_source?: string | null
           role?: string | null
+          work_started_at?: string | null
+          work_started_by?: string | null
+          work_started_from?: string | null
         }
         Update: {
           artisan_id?: string | null
@@ -1337,7 +1949,20 @@ export type Database = {
           id?: string
           intervention_id?: string | null
           is_primary?: boolean | null
+          paid_at?: string | null
+          payment_status?: string
+          payment_updated_at?: string | null
+          payment_updated_by?: string | null
+          price_accepted_amount?: number | null
+          price_refused_reason?: string | null
+          price_responded_at?: string | null
+          price_response?: string | null
+          price_response_by?: string | null
+          price_response_source?: string | null
           role?: string | null
+          work_started_at?: string | null
+          work_started_by?: string | null
+          work_started_from?: string | null
         }
         Relationships: [
           {
@@ -1368,6 +1993,48 @@ export type Database = {
             referencedRelation: "interventions_search_mv"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "intervention_artisans_payment_updated_by_fkey"
+            columns: ["payment_updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervention_artisans_payment_updated_by_fkey"
+            columns: ["payment_updated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "intervention_artisans_price_response_by_fkey"
+            columns: ["price_response_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervention_artisans_price_response_by_fkey"
+            columns: ["price_response_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "intervention_artisans_work_started_by_fkey"
+            columns: ["work_started_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervention_artisans_work_started_by_fkey"
+            columns: ["work_started_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       intervention_attachments: {
@@ -1384,6 +2051,7 @@ export type Database = {
           kind: string
           metadata: Json | null
           mime_type: string | null
+          updated_at: string | null
           url: string
         }
         Insert: {
@@ -1399,6 +2067,7 @@ export type Database = {
           kind: string
           metadata?: Json | null
           mime_type?: string | null
+          updated_at?: string | null
           url: string
         }
         Update: {
@@ -1414,6 +2083,7 @@ export type Database = {
           kind?: string
           metadata?: Json | null
           mime_type?: string | null
+          updated_at?: string | null
           url?: string
         }
         Relationships: [
@@ -1463,6 +2133,7 @@ export type Database = {
           new_values: Json | null
           occurred_at: string
           old_values: Json | null
+          operation_id: string | null
           related_entity_id: string | null
           related_entity_type: string | null
           request_id: string | null
@@ -1486,6 +2157,7 @@ export type Database = {
           new_values?: Json | null
           occurred_at?: string
           old_values?: Json | null
+          operation_id?: string | null
           related_entity_id?: string | null
           related_entity_type?: string | null
           request_id?: string | null
@@ -1509,6 +2181,7 @@ export type Database = {
           new_values?: Json | null
           occurred_at?: string
           old_values?: Json | null
+          operation_id?: string | null
           related_entity_id?: string | null
           related_entity_type?: string | null
           request_id?: string | null
@@ -1544,6 +2217,13 @@ export type Database = {
             columns: ["intervention_id"]
             isOneToOne: false
             referencedRelation: "interventions_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervention_audit_log_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "data_operation_log"
             referencedColumns: ["id"]
           },
           {
@@ -1818,6 +2498,7 @@ export type Database = {
           id: string
           intervention_id: string
           metadata: Json | null
+          operation_id: string | null
           source: string | null
           to_status_code: string | null
           to_status_id: string
@@ -1831,6 +2512,7 @@ export type Database = {
           id?: string
           intervention_id: string
           metadata?: Json | null
+          operation_id?: string | null
           source?: string | null
           to_status_code?: string | null
           to_status_id: string
@@ -1844,6 +2526,7 @@ export type Database = {
           id?: string
           intervention_id?: string
           metadata?: Json | null
+          operation_id?: string | null
           source?: string | null
           to_status_code?: string | null
           to_status_id?: string
@@ -1883,6 +2566,13 @@ export type Database = {
             columns: ["intervention_id"]
             isOneToOne: false
             referencedRelation: "interventions_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervention_status_transitions_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "data_operation_log"
             referencedColumns: ["id"]
           },
           {
@@ -1952,6 +2642,7 @@ export type Database = {
           metier_second_artisan_id: string | null
           owner_id: string | null
           reference_agence: string | null
+          search_vector: unknown
           sous_statut_bg_color: string | null
           sous_statut_text: string | null
           sous_statut_text_color: string | null
@@ -1992,6 +2683,7 @@ export type Database = {
           metier_second_artisan_id?: string | null
           owner_id?: string | null
           reference_agence?: string | null
+          search_vector?: unknown
           sous_statut_bg_color?: string | null
           sous_statut_text?: string | null
           sous_statut_text_color?: string | null
@@ -2032,6 +2724,7 @@ export type Database = {
           metier_second_artisan_id?: string | null
           owner_id?: string | null
           reference_agence?: string | null
+          search_vector?: unknown
           sous_statut_bg_color?: string | null
           sous_statut_text?: string | null
           sous_statut_text_color?: string | null
@@ -2411,6 +3104,90 @@ export type Database = {
         }
         Relationships: []
       }
+      page_visibility: {
+        Row: {
+          allowed_roles: string[]
+          allowed_user_ids: string[]
+          expires_at: string | null
+          page_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allowed_roles?: string[]
+          allowed_user_ids?: string[]
+          expires_at?: string | null
+          page_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allowed_roles?: string[]
+          allowed_user_ids?: string[]
+          expires_at?: string | null
+          page_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "page_visibility_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "page_visibility_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      password_reset_tokens: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          token: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          token?: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          token?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_reset_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "password_reset_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       payment_methods: {
         Row: {
           brand: string | null
@@ -2480,51 +3257,6 @@ export type Database = {
           description?: string | null
           id?: string
           key?: string
-        }
-        Relationships: []
-      }
-      plugin_subscriptions: {
-        Row: {
-          cancel_at_period_end: boolean | null
-          created_at: string | null
-          current_period_end: string | null
-          current_period_start: string | null
-          id: string
-          metadata: Json | null
-          plugin_id: string
-          status: string
-          stripe_customer_id: string | null
-          stripe_price_id: string | null
-          stripe_subscription_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          cancel_at_period_end?: boolean | null
-          created_at?: string | null
-          current_period_end?: string | null
-          current_period_start?: string | null
-          id?: string
-          metadata?: Json | null
-          plugin_id: string
-          status?: string
-          stripe_customer_id?: string | null
-          stripe_price_id?: string | null
-          stripe_subscription_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          cancel_at_period_end?: boolean | null
-          created_at?: string | null
-          current_period_end?: string | null
-          current_period_start?: string | null
-          id?: string
-          metadata?: Json | null
-          plugin_id?: string
-          status?: string
-          stripe_customer_id?: string | null
-          stripe_price_id?: string | null
-          stripe_subscription_id?: string | null
-          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2952,6 +3684,57 @@ export type Database = {
           },
         ]
       }
+      user_activity_events: {
+        Row: {
+          client_ts: string | null
+          created_at: string
+          id: number
+          intervention_id: string | null
+          kind: string
+          occurred_at: string
+          page_name: string | null
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          client_ts?: string | null
+          created_at?: string
+          id?: never
+          intervention_id?: string | null
+          kind: string
+          occurred_at?: string
+          page_name?: string | null
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          client_ts?: string | null
+          created_at?: string
+          id?: never
+          intervention_id?: string | null
+          kind?: string
+          occurred_at?: string
+          page_name?: string | null
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_activity_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       user_page_permissions: {
         Row: {
           created_at: string | null
@@ -2993,6 +3776,78 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      user_page_sessions: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          ended_at: string | null
+          id: string
+          intervention_id: string | null
+          page_name: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          ended_at?: string | null
+          id?: string
+          intervention_id?: string | null
+          page_name: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          ended_at?: string | null
+          id?: string
+          intervention_id?: string | null
+          page_name?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_page_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_page_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      user_page_sessions_cleanup_backup: {
+        Row: {
+          cleaned_at: string
+          id: string
+          original_duration_ms: number | null
+          original_ended_at: string | null
+          reason: string | null
+        }
+        Insert: {
+          cleaned_at?: string
+          id: string
+          original_duration_ms?: number | null
+          original_ended_at?: string | null
+          reason?: string | null
+        }
+        Update: {
+          cleaned_at?: string
+          id?: string
+          original_duration_ms?: number | null
+          original_ended_at?: string | null
+          reason?: string | null
+        }
+        Relationships: []
       }
       user_permissions: {
         Row: {
@@ -3102,6 +3957,54 @@ export type Database = {
           },
         ]
       }
+      user_presence_events: {
+        Row: {
+          created_at: string
+          id: number
+          kind: string
+          metadata: Json
+          occurred_at: string
+          session_id: string | null
+          source: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          kind: string
+          metadata?: Json
+          occurred_at?: string
+          session_id?: string | null
+          source?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          kind?: string
+          metadata?: Json
+          occurred_at?: string
+          session_id?: string | null
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_presence_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_presence_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -3165,6 +4068,7 @@ export type Database = {
           email_smtp_user: string | null
           firstname: string | null
           id: string
+          last_active_at: string | null
           last_activity_date: string | null
           last_lateness_date: string | null
           last_seen_at: string | null
@@ -3173,6 +4077,9 @@ export type Database = {
           lateness_count_year: number | null
           lateness_email_sent_at: string | null
           lateness_notification_shown_at: string | null
+          presence_session_id: string | null
+          presence_state: string
+          presence_state_changed_at: string
           restored_at: string | null
           status: Database["public"]["Enums"]["user_status"]
           token_version: number | null
@@ -3198,6 +4105,7 @@ export type Database = {
           email_smtp_user?: string | null
           firstname?: string | null
           id?: string
+          last_active_at?: string | null
           last_activity_date?: string | null
           last_lateness_date?: string | null
           last_seen_at?: string | null
@@ -3206,6 +4114,9 @@ export type Database = {
           lateness_count_year?: number | null
           lateness_email_sent_at?: string | null
           lateness_notification_shown_at?: string | null
+          presence_session_id?: string | null
+          presence_state?: string
+          presence_state_changed_at?: string
           restored_at?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           token_version?: number | null
@@ -3231,6 +4142,7 @@ export type Database = {
           email_smtp_user?: string | null
           firstname?: string | null
           id?: string
+          last_active_at?: string | null
           last_activity_date?: string | null
           last_lateness_date?: string | null
           last_seen_at?: string | null
@@ -3239,6 +4151,9 @@ export type Database = {
           lateness_count_year?: number | null
           lateness_email_sent_at?: string | null
           lateness_notification_shown_at?: string | null
+          presence_session_id?: string | null
+          presence_state?: string
+          presence_state_changed_at?: string
           restored_at?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           token_version?: number | null
@@ -3412,6 +4327,7 @@ export type Database = {
           artisan_telephone2: string | null
           artisan_ville_intervention: string | null
           artisan_ville_siege: string | null
+          artisans_aggreges: string | null
           assigned_user_code: string | null
           assigned_user_firstname: string | null
           assigned_user_id: string | null
@@ -3444,6 +4360,7 @@ export type Database = {
           owner_email: string | null
           owner_firstname: string | null
           owner_lastname: string | null
+          owner_plain_nom_facturation: string | null
           owner_telephone: string | null
           owner_telephone2: string | null
           owner_ville: string | null
@@ -3459,6 +4376,7 @@ export type Database = {
           tenant_email: string | null
           tenant_firstname: string | null
           tenant_lastname: string | null
+          tenant_plain_nom_client: string | null
           tenant_telephone: string | null
           tenant_telephone2: string | null
           tenant_ville: string | null
@@ -3521,8 +4439,6 @@ export type Database = {
       v_user_permissions_debug: {
         Row: {
           email: string | null
-          firstname: string | null
-          lastname: string | null
           permissions: string[] | null
           role_name: string | null
           user_id: string | null
@@ -3543,6 +4459,10 @@ export type Database = {
           users_set_offline: number
         }[]
       }
+      cleanup_truncate_import_data: {
+        Args: { p_confirm: string; p_tables?: string[] }
+        Returns: Json
+      }
       create_automatic_status_transitions_on_creation: {
         Args: {
           p_changed_by_user_id?: string
@@ -3552,18 +4472,121 @@ export type Database = {
         }
         Returns: number
       }
+      csv_intervention_import_resolve_by_composite: {
+        Args: {
+          p_addresses: string[]
+          p_agence_ids: string[]
+          p_dates: string[]
+          p_lines: number[]
+        }
+        Returns: {
+          line: number
+          match_ids: string[]
+        }[]
+      }
+      csv_intervention_import_resolve_owners: {
+        Args: {
+          p_emails?: string[]
+          p_names?: string[]
+          p_telephones?: string[]
+          p_telephones2?: string[]
+        }
+        Returns: {
+          adresse: string | null
+          code_postal: string | null
+          created_at: string | null
+          email: string | null
+          external_ref: string | null
+          id: string
+          owner_firstname: string | null
+          owner_lastname: string | null
+          plain_nom_facturation: string | null
+          telephone: string | null
+          telephone2: string | null
+          updated_at: string | null
+          ville: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "owner"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      csv_intervention_import_resolve_tenants: {
+        Args: {
+          p_emails?: string[]
+          p_names?: string[]
+          p_telephones?: string[]
+          p_telephones2?: string[]
+        }
+        Returns: {
+          adresse: string | null
+          code_postal: string | null
+          created_at: string | null
+          email: string | null
+          external_ref: string | null
+          firstname: string | null
+          id: string
+          lastname: string | null
+          plain_nom_client: string | null
+          telephone: string | null
+          telephone2: string | null
+          updated_at: string | null
+          ville: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "tenants"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      current_data_operation_context: { Args: never; Returns: string }
+      f_unaccent: { Args: { "": string }; Returns: string }
       filter_interventions_ischeck: {
         Args: { p_include_check?: boolean; p_user_id?: string }
         Returns: {
           intervention_id: string
         }[]
       }
-      generate_artisan_portal_token: {
-        Args: { p_artisan_id: string; p_created_by?: string }
+      find_nearby_artisans: {
+        Args: {
+          p_latitude: number
+          p_limit?: number
+          p_longitude: number
+          p_metier_id: string
+          p_radius_km: number
+        }
         Returns: {
-          expires_at: string
-          token: string
+          adresse_intervention: string
+          code_postal_intervention: string
+          distance_km: number
+          email: string
+          id: string
+          intervention_latitude: number
+          intervention_longitude: number
+          nom: string
+          photo_content_hash: string
+          photo_derived_sizes: Json
+          photo_mime_preferred: string
+          photo_url: string
+          prenom: string
+          raison_sociale: string
+          statut_id: string
+          telephone: string
+          telephone2: string
+          ville_intervention: string
         }[]
+      }
+      get_activity_heatmap: {
+        Args: {
+          p_bucket?: string
+          p_date_end: string
+          p_date_start: string
+          p_user_ids?: string[]
+        }
+        Returns: Json
       }
       get_actor_snapshot: {
         Args: { p_user_id: string }
@@ -3602,6 +4625,25 @@ export type Database = {
           p_top_gestionnaires?: number
         }
         Returns: Json
+      }
+      get_artisan_history: {
+        Args: { p_artisan_id: string; p_limit?: number; p_offset?: number }
+        Returns: {
+          action_label: string
+          action_type: string
+          actor_code: string
+          actor_color: string
+          actor_display: string
+          changed_fields: string[]
+          id: string
+          metadata: Json
+          new_values: Json
+          occurred_at: string
+          old_values: Json
+          related_entity_id: string
+          related_entity_type: string
+          source: string
+        }[]
       }
       get_artisan_previous_status: {
         Args: { p_artisan_id: string; p_before_status_code?: string }
@@ -3702,6 +4744,34 @@ export type Database = {
         }
         Returns: Json
       }
+      get_global_activity_feed: {
+        Args: {
+          p_action_types?: string[]
+          p_date_end: string
+          p_date_start: string
+          p_entity_types?: string[]
+          p_limit?: number
+          p_offset?: number
+          p_user_ids?: string[]
+        }
+        Returns: Json
+      }
+      get_intervention_filter_counts: {
+        Args: {
+          p_agence_id?: string
+          p_end_date?: string
+          p_group_column: string
+          p_metier_id?: string
+          p_start_date?: string
+          p_statut_id?: string
+          p_user_id?: string
+          p_user_is_null?: boolean
+        }
+        Returns: {
+          cnt: number
+          group_value: string
+        }[]
+      }
       get_intervention_history: {
         Args: { p_intervention_id: string; p_limit?: number; p_offset?: number }
         Returns: {
@@ -3732,7 +4802,58 @@ export type Database = {
         Args: { p_period_end: string; p_period_start: string }
         Returns: Json
       }
+      get_public_tables: {
+        Args: never
+        Returns: {
+          table_name: string
+        }[]
+      }
       get_public_user_id: { Args: never; Returns: string }
+      get_sorted_intervention_ids: {
+        Args: {
+          p_agence_id?: string
+          p_end_date?: string
+          p_limit?: number
+          p_metier_ids?: string[]
+          p_offset?: number
+          p_sort_dir?: string
+          p_sort_property?: string
+          p_start_date?: string
+          p_statut_ids?: string[]
+          p_user_id?: string
+          p_user_is_null?: boolean
+        }
+        Returns: {
+          intervention_id: string
+          total_count: number
+        }[]
+      }
+      get_team_connections: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_user_ids?: string[]
+        }
+        Returns: Json
+      }
+      get_team_daily_overview: { Args: { p_date?: string }; Returns: Json }
+      get_team_weekly_stats: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: Json
+      }
+      get_top_entities: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_limit?: number
+          p_user_ids?: string[]
+        }
+        Returns: Json
+      }
+      get_user_daily_activity: {
+        Args: { p_date?: string; p_user_id: string }
+        Returns: Json
+      }
       get_user_permissions: {
         Args: { p_user_id: string }
         Returns: {
@@ -3741,6 +4862,7 @@ export type Database = {
           source: string
         }[]
       }
+      immutable_unaccent: { Args: { "": string }; Returns: string }
       jsonb_diff: {
         Args: { p_exclude_keys?: string[]; p_new: Json; p_old: Json }
         Returns: {
@@ -3759,9 +4881,44 @@ export type Database = {
         }
         Returns: string
       }
+      monitoring_active_intervals: {
+        Args: { p_from: string; p_to: string; p_user_id?: string }
+        Returns: {
+          duration_ms: number
+          ended_at: string
+          intervention_id: string
+          page_name: string
+          started_at: string
+          user_id: string
+        }[]
+      }
+      monitoring_screen_rows: {
+        Args: { p_from: string; p_to: string; p_user_id?: string }
+        Returns: {
+          duration_ms: number
+          ended_at: string
+          intervention_id: string
+          page_name: string
+          started_at: string
+          user_id: string
+        }[]
+      }
+      normalize_address: { Args: { p_adresse: string }; Returns: string }
       recalculate_artisan_status: {
         Args: { artisan_uuid: string }
         Returns: string
+      }
+      record_user_presence_event: {
+        Args: {
+          p_kind: string
+          p_metadata?: Json
+          p_occurred_at?: string
+          p_session_id?: string
+          p_source?: string
+          p_state: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       refresh_artisans_search: { Args: never; Returns: undefined }
       refresh_current_podium_period: { Args: never; Returns: undefined }
@@ -3819,6 +4976,28 @@ export type Database = {
           ville: string
         }[]
       }
+      search_interventions_by_amount: {
+        Args: {
+          p_amount: number
+          p_cost_types?: string[]
+          p_limit?: number
+          p_offset?: number
+          p_payment_types?: string[]
+        }
+        Returns: {
+          adresse: string
+          agence_label: string
+          artisan_plain_nom: string
+          contexte_intervention: string
+          date_formatted: string
+          id: string
+          id_inter: string
+          rank: number
+          statut_color: string
+          statut_label: string
+          ville: string
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
@@ -3828,13 +5007,6 @@ export type Database = {
         Returns: boolean
       }
       user_has_role: { Args: { role_name: string }; Returns: boolean }
-      validate_artisan_portal_token: {
-        Args: { p_token: string }
-        Returns: {
-          artisan_id: string
-          is_valid: boolean
-        }[]
-      }
     }
     Enums: {
       target_period_type: "week" | "month" | "year"
@@ -3971,3 +5143,4 @@ export const Constants = {
     },
   },
 } as const
+
