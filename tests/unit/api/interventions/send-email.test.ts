@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const h = vi.hoisted(() => ({
   createSSRServerClient: vi.fn(),
@@ -149,8 +149,18 @@ function validBody(overrides: Record<string, unknown> = {}) {
 }
 
 describe('POST /api/interventions/[id]/send-email', () => {
+  const previousSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+  afterEach(() => {
+    if (previousSupabaseUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previousSupabaseUrl
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    // Seules les pièces du stockage du projet sont téléchargeables (durcissement SSRF) :
+    // les lignes de test doivent donc désigner CE stockage.
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321'
     h.sendEmailToArtisan.mockResolvedValue({
       success: true,
       messageId: 'msg-1',
@@ -251,6 +261,23 @@ describe('POST /api/interventions/[id]/send-email', () => {
     expect(response.status).toBe(400)
     expect(payload.error).toContain('artisan')
     expect(h.sendEmailToArtisan).not.toHaveBeenCalled()
+  })
+
+  it("should refuser 400 une pièce dont l'URL sort du stockage, sans envoyer (SSRF)", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const stub = createSupabaseStub({
+      attachments: [attachmentRow({ url: 'http://169.254.169.254/latest/meta-data/' })],
+    })
+    h.createSSRServerClient.mockResolvedValue(stub.client)
+
+    const response = await POST(makeRequest(validBody({ attachmentIds: ['att-1'] })), params)
+    const payload = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(payload.error).toContain('ne peut pas être joint')
+    expect(h.sendEmailToArtisan).not.toHaveBeenCalled()
+    expect(stub.downloaded).toEqual([])
+    warn.mockRestore()
   })
 
   it('should ne pas estampiller quand l\'envoi échoue', async () => {

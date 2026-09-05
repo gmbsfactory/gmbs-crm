@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   EmailAttachmentError,
@@ -92,8 +92,18 @@ function createStub(options: StubOptions = {}) {
 }
 
 describe('email-attachment-loader', () => {
+  const previousSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
   beforeEach(() => {
     vi.clearAllMocks()
+    // Le téléchargement n'accepte que le stockage du projet : les URL des lignes de test
+    // doivent désigner CE stockage, sans quoi elles sont refusées (durcissement SSRF).
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321'
+  })
+
+  afterEach(() => {
+    if (previousSupabaseUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previousSupabaseUrl
   })
 
   describe('loadEmailAttachments', () => {
@@ -190,21 +200,85 @@ describe('email-attachment-loader', () => {
       })
     })
 
-    it('should retomber sur une lecture HTTP pour une pièce hébergée hors du bucket', async () => {
-      const fetchMock = vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        arrayBuffer: async () => new TextEncoder().encode('depuis-http').buffer,
-      }))
+    it("should refuser une URL hors du stockage et ne jamais l'appeler (faille SSRF)", async () => {
+      const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      const stub = createStub({ rows: [storageRow({ url: 'https://legacy.invalid/devis.pdf' })] })
-      const loaded = await loadEmailAttachments(stub.client, INTERVENTION_ID, ['att-1'])
+      const stub = createStub({
+        rows: [storageRow({ url: 'http://exfiltration.invalid/storage/v1/object/public/documents/x.pdf' })],
+      })
 
-      expect(fetchMock).toHaveBeenCalledWith('https://legacy.invalid/devis.pdf')
-      expect(loaded[0].content.toString()).toBe('depuis-http')
+      await expect(loadEmailAttachments(stub.client, INTERVENTION_ID, ['att-1'])).rejects.toMatchObject({
+        name: 'EmailAttachmentError',
+        status: 400,
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
       expect(stub.downloadedPaths).toEqual([])
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('hote-hors-stockage'))
+
+      warn.mockRestore()
       vi.unstubAllGlobals()
+    })
+
+    it("should refuser une adresse interne : le corps de la réponse ne part pas par e-mail", async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const stub = createStub({
+        rows: [
+          storageRow({
+            url: 'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+            filename: 'secrets.json',
+          }),
+        ],
+      })
+
+      await expect(loadEmailAttachments(stub.client, INTERVENTION_ID, ['att-1'])).rejects.toMatchObject({
+        status: 400,
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(stub.downloadedPaths).toEqual([])
+
+      warn.mockRestore()
+      vi.unstubAllGlobals()
+    })
+
+    it("should refuser un fichier local désigné par file:// ", async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const stub = createStub({ rows: [storageRow({ url: 'file:///etc/passwd' })] })
+
+      await expect(loadEmailAttachments(stub.client, INTERVENTION_ID, ['att-1'])).rejects.toMatchObject({
+        status: 400,
+      })
+      expect(stub.downloadedPaths).toEqual([])
+      warn.mockRestore()
+    })
+
+    it("should refuser une pièce d'un bucket non autorisé", async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const stub = createStub({
+        rows: [storageRow({ url: 'http://127.0.0.1:54321/storage/v1/object/public/avatars/a.png' })],
+      })
+
+      await expect(loadEmailAttachments(stub.client, INTERVENTION_ID, ['att-1'])).rejects.toMatchObject({
+        status: 400,
+      })
+      expect(stub.downloadedPaths).toEqual([])
+      warn.mockRestore()
+    })
+
+    it('should refuser un fichier unitaire au-delà du plafond par pièce', async () => {
+      const big = Buffer.alloc(21 * 1024 * 1024, 1)
+      const stub = createStub({
+        rows: [storageRow({ file_size: null })],
+        downloads: { 'intervention/i-0001/devis.pdf': big },
+      })
+
+      await expect(loadEmailAttachments(stub.client, INTERVENTION_ID, ['att-1'])).rejects.toMatchObject({
+        status: 413,
+      })
     })
   })
 

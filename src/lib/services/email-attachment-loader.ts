@@ -7,8 +7,13 @@ import {
   formatFileSize,
   isEmailAttachableKind,
   labelForAttachmentKind,
-  parseDocumentsStoragePath,
 } from '@/lib/interventions/email-attachments'
+import {
+  EMAIL_ATTACHMENT_DOWNLOAD_TIMEOUT_MS,
+  MAX_EMAIL_ATTACHMENT_BYTES,
+  emailAttachmentRefusalMessage,
+  resolveEmailAttachmentSource,
+} from '@/lib/services/email-attachment-source'
 
 /**
  * Lecture des pièces jointes d'un e-mail artisan DEPUIS LE STOCKAGE (lot L7, spec §5.6).
@@ -17,10 +22,11 @@ import {
  * de la requête : Vercel rejetait l'envoi au-delà de ~4,5 Mo de corps, soit ~3,2 Mo de
  * fichiers. Ici le client n'envoie plus que des identifiants de pièces de l'intervention ;
  * le serveur va chercher les octets dans le bucket `documents`. Un PDF de 8 Mo passe.
+ *
+ * Durcissement SSRF : les octets sont lus par le client Supabase à partir du bucket et du
+ * chemin dérivés de l'URL, et jamais par un `fetch` de cette URL. Voir
+ * `email-attachment-source.ts` pour la règle d'acceptation et les motifs de refus.
  */
-
-/** Bucket des pièces d'intervention et d'artisan. */
-const DOCUMENTS_BUCKET = 'documents'
 
 /** Échec attribuable à la sélection du gestionnaire : le code HTTP est porté par l'erreur. */
 export class EmailAttachmentError extends Error {
@@ -59,34 +65,73 @@ export function toNodemailerAttachment(loaded: LoadedEmailAttachment): Attachmen
   }
 }
 
-/** Télécharge une pièce : par l'API Storage si elle y vit, par HTTP sinon. */
+/** Borne le téléchargement dans le temps : une lecture qui traîne ne bloque pas l'envoi. */
+async function withTimeout<T>(promise: PromiseLike<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new EmailAttachmentError(
+                `Le fichier « ${label} » n'a pas pu être lu dans le délai imparti.`,
+                504,
+              ),
+            ),
+          EMAIL_ATTACHMENT_DOWNLOAD_TIMEOUT_MS,
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/**
+ * Télécharge une pièce PAR LE CLIENT SUPABASE, jamais par un `fetch` de son URL.
+ *
+ * L'URL stockée n'est plus une adresse à appeler : c'est une donnée à valider, dont on ne
+ * garde que le bucket et le chemin (voir `email-attachment-source.ts`). Une adresse hors du
+ * stockage du projet — service interne, IP littérale, hôte local, autre domaine — est refusée
+ * et journalisée : c'est le correctif de la faille SSRF avec exfiltration par e-mail.
+ */
 async function downloadAttachment(
   supabase: SupabaseClient,
   row: AttachmentRow,
 ): Promise<Buffer> {
-  const storagePath = parseDocumentsStoragePath(row.url)
+  const label = (row.filename ?? '').trim() || row.id
+  const source = resolveEmailAttachmentSource(row.url)
 
-  if (storagePath) {
-    const { data, error } = await supabase.storage.from(DOCUMENTS_BUCKET).download(storagePath)
-    if (error || !data) {
-      throw new EmailAttachmentError(
-        `Le fichier « ${row.filename ?? storagePath} » est introuvable dans le stockage.`,
-        502,
-      )
-    }
-    return Buffer.from(await data.arrayBuffer())
+  if (!source.ok) {
+    console.warn(
+      "[send-email] Pièce jointe refusée : adresse hors du stockage du CRM " +
+        `(motif=${source.reason}, pièce=${row.id}, détail=${source.detail})`,
+    )
+    throw new EmailAttachmentError(emailAttachmentRefusalMessage(source.reason, label), 400)
   }
 
-  // Pièce hébergée hors du bucket (import historique) : lecture HTTP, sans quoi une
-  // intervention ancienne ne pourrait plus rien joindre du tout.
-  const response = await fetch(row.url)
-  if (!response.ok) {
+  const { data, error } = await withTimeout(
+    supabase.storage.from(source.object.bucket).download(source.object.path),
+    label,
+  )
+  if (error || !data) {
     throw new EmailAttachmentError(
-      `Le fichier « ${row.filename ?? row.url} » n'a pas pu être téléchargé (HTTP ${response.status}).`,
+      `Le fichier « ${label} » est introuvable dans le stockage.`,
       502,
     )
   }
-  return Buffer.from(await response.arrayBuffer())
+
+  const content = Buffer.from(await data.arrayBuffer())
+  if (content.length > MAX_EMAIL_ATTACHMENT_BYTES) {
+    throw new EmailAttachmentError(
+      `Le fichier « ${label} » est trop volumineux (${formatFileSize(content.length)}) : ` +
+        `maximum ${MAX_EMAIL_ATTACHMENTS_TOTAL_LABEL} par pièce.`,
+      413,
+    )
+  }
+  return content
 }
 
 /**

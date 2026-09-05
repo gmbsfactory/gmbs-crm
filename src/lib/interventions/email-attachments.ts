@@ -135,33 +135,3 @@ export function formatFileSize(bytes: number | null | undefined): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
 }
-
-/**
- * Chemin d'un objet du bucket `documents` à partir de son URL publique.
- *
- * `intervention_attachments.url` stocke une URL publique complète
- * (`…/storage/v1/object/public/documents/intervention/<id>/<fichier>`). Le serveur a besoin du
- * chemin *dans le bucket* pour appeler `storage.from('documents').download(path)` — lire par
- * l'API Storage plutôt que par un `fetch` de l'URL publique garde le flux interne, respecte les
- * policies du bucket et continuera de fonctionner si le bucket devient privé.
- *
- * Renvoie `null` pour une URL qui ne pointe pas dans ce bucket (pièce hébergée ailleurs,
- * import historique) : l'appelant retombe alors sur une lecture HTTP.
- */
-export function parseDocumentsStoragePath(url: string | null | undefined): string | null {
-  const raw = String(url ?? '').trim()
-  if (!raw) return null
-
-  const marker = '/storage/v1/object/public/documents/'
-  const index = raw.indexOf(marker)
-  if (index === -1) return null
-
-  const path = raw.slice(index + marker.length).split('?')[0].split('#')[0]
-  if (!path) return null
-
-  try {
-    return decodeURIComponent(path)
-  } catch {
-    return path
-  }
-}

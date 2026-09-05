@@ -6,7 +6,6 @@ import {
   formatFileSize,
   isEmailAttachableKind,
   labelForAttachmentKind,
-  parseDocumentsStoragePath,
   toEmailAttachmentOptions,
   totalAttachmentsSize,
   type RawInterventionAttachment,
@@ -79,35 +78,6 @@ describe('email-attachments', () => {
     it('should ignorer une ligne sans identifiant', () => {
       const options = toEmailAttachmentOptions([{ id: '', kind: 'devis', url: 'http://x' } as RawInterventionAttachment])
       expect(options).toHaveLength(0)
-    })
-  })
-
-  describe('parseDocumentsStoragePath', () => {
-    it('should extraire le chemin dans le bucket documents', () => {
-      const path = parseDocumentsStoragePath(
-        'http://127.0.0.1:54321/storage/v1/object/public/documents/intervention/i-1/devis.pdf',
-      )
-      expect(path).toBe('intervention/i-1/devis.pdf')
-    })
-
-    it('should décoder les caractères échappés du nom de fichier', () => {
-      const path = parseDocumentsStoragePath(
-        'https://x.supabase.co/storage/v1/object/public/documents/intervention/i-1/devis%20final.pdf',
-      )
-      expect(path).toBe('intervention/i-1/devis final.pdf')
-    })
-
-    it('should ignorer la query string et le fragment', () => {
-      const path = parseDocumentsStoragePath(
-        'https://x.supabase.co/storage/v1/object/public/documents/intervention/i-1/d.pdf?t=1#page=2',
-      )
-      expect(path).toBe('intervention/i-1/d.pdf')
-    })
-
-    it('should renvoyer null pour une URL hors du bucket : l\'appelant retombe sur une lecture HTTP', () => {
-      expect(parseDocumentsStoragePath('https://exemple.invalid/fichiers/devis.pdf')).toBeNull()
-      expect(parseDocumentsStoragePath('')).toBeNull()
-      expect(parseDocumentsStoragePath(null)).toBeNull()
     })
   })
 

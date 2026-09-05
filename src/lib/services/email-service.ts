@@ -17,6 +17,14 @@ import { safeErrorMessage } from "@/lib/api/common/error-handler";
 
 export interface Attachment {
   filename: string;
+  /**
+   * Chemin de fichier LOCAL — réservé aux pièces internes du service (le logo GMBS).
+   *
+   * Nodemailer lit ce chemin sur le disque du serveur : une valeur venue d'un appelant
+   * ferait sortir n'importe quel fichier lisible par le processus en pièce jointe d'un
+   * e-mail. `sendEmailToArtisan` refuse donc tout appel qui en fournit un (voir
+   * `assertNoLocalPathAttachment`). Les pièces métier passent par `content`.
+   */
   path?: string;
   content?: Buffer;
   cid?: string;
@@ -88,6 +96,24 @@ function loadLogoAttachment(): Attachment {
 }
 
 /**
+ * Refuse toute pièce jointe désignée par un chemin de fichier local.
+ *
+ * Même motif que la faille SSRF corrigée dans `email-attachment-loader.ts` : une source de
+ * données extérieure ne doit jamais décider de ce que le serveur lit puis expédie. Ici, la
+ * lecture serait locale (`/etc/passwd`, `.env`, un secret monté) plutôt que réseau, mais
+ * l'exfiltration serait la même — par pièce jointe d'un e-mail. Seul le logo GMBS, construit
+ * dans ce module, a le droit d'utiliser `path`.
+ *
+ * @returns le libellé de la pièce fautive, ou `null` si toutes les pièces sont saines.
+ */
+function assertNoLocalPathAttachment(attachments: readonly Attachment[]): string | null {
+  const offending = attachments.find(
+    (attachment) => typeof attachment.path === 'string' && attachment.path.trim().length > 0
+  );
+  return offending ? offending.filename || 'sans nom' : null;
+}
+
+/**
  * Sleep utility for retry delays
  */
 function sleep(ms: number): Promise<void> {
@@ -108,6 +134,20 @@ function sleep(ms: number): Promise<void> {
 export async function sendEmailToArtisan(params: SendEmailParams): Promise<SendEmailResult> {
   const { artisanEmail, subject, htmlContent, smtpEmail, smtpPassword, attachments = [] } = params;
 
+  // Garde-fou : aucune pièce jointe ne peut désigner un fichier du disque du serveur.
+  const localPathAttachment = assertNoLocalPathAttachment(attachments);
+  if (localPathAttachment) {
+    console.error(
+      `[Email Service] Pièce jointe refusée : chemin de fichier local interdit (${localPathAttachment})`
+    );
+    return {
+      success: false,
+      error:
+        "Pièce jointe refusée : seules les pièces de l'intervention peuvent être jointes " +
+        '(chemin de fichier local interdit).',
+    };
+  }
+
   // Load logo attachment (automatic, always included)
   let logoAttachment: Attachment;
   try {
@@ -122,9 +162,9 @@ export async function sendEmailToArtisan(params: SendEmailParams): Promise<SendE
   // Prepare all attachments (logo + user attachments)
   const allAttachments: SendMailOptions['attachments'] = [
     logoAttachment,
+    // `path` n'est volontairement PAS recopié : seul le logo ci-dessus lit un fichier local.
     ...attachments.map((att) => ({
       filename: att.filename,
-      path: att.path,
       content: att.content,
       cid: att.cid,
       contentType: att.contentType,
