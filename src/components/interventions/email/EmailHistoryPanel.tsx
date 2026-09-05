@@ -125,8 +125,7 @@ export function EmailHistoryPanel({ interventionId, isOpen, onClose }: EmailHist
       <SheetContent
         side="right"
         hideCloseButton
-        overlayClassName="!z-[110]"
-        className="!z-[120] flex h-full w-[400px] max-w-[94vw] flex-col p-0 sm:w-[440px] sm:max-w-[480px]"
+        className="flex h-full w-[400px] max-w-[94vw] flex-col p-0 sm:w-[440px] sm:max-w-[480px]"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3">

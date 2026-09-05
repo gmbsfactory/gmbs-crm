@@ -11,6 +11,7 @@ import { NetworkPanel } from './panels/NetworkPanel'
 import { AuthPanel } from './panels/AuthPanel'
 import { ConfigPanel } from './panels/ConfigPanel'
 import { X } from 'lucide-react'
+import { Z_CLASS } from '@/lib/ui/z-index'
 
 const statusBadgeColors = {
   realtime: 'bg-green-500 shadow-green-500/50',
@@ -32,7 +33,7 @@ export default function DeveloperDashboard() {
       {!isOpen && (
         <button
           onClick={toggle}
-          className={`fixed bottom-4 right-4 z-[9999] w-10 h-10 rounded-full ${badgeColor} shadow-lg
+          className={`fixed bottom-4 right-4 ${Z_CLASS.pleinEcran} w-10 h-10 rounded-full ${badgeColor} shadow-lg
             flex items-center justify-center cursor-pointer hover:scale-110 transition-transform
             border-2 border-background`}
           title="Developer Dashboard (Alt+R)"
@@ -47,8 +48,8 @@ export default function DeveloperDashboard() {
       {isOpen && (
         <div
           ref={panelRef}
-          className="fixed bottom-4 right-4 z-[9999] w-[420px] rounded-lg border bg-background/95
-            backdrop-blur-sm shadow-2xl flex flex-col overflow-hidden"
+          className={`fixed bottom-4 right-4 ${Z_CLASS.pleinEcran} w-[420px] rounded-lg border bg-background/95
+            backdrop-blur-sm shadow-2xl flex flex-col overflow-hidden`}
           style={{ height: '70vh', maxHeight: 'calc(100vh - 32px)' }}
         >
           {/* Header */}

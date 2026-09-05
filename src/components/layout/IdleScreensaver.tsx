@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 /** Logo size while bouncing */
 const LOGO_SIZE = 120
@@ -138,7 +139,7 @@ export function IdleScreensaver({ isIdle }: { isIdle: boolean }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
-            className="fixed inset-0 z-[9999] bg-black/30 cursor-none"
+            className={`fixed inset-0 ${Z_CLASS.pleinEcran} bg-black/30 cursor-none`}
             aria-hidden="true"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}

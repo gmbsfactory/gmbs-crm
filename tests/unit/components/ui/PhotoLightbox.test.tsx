@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 
 import { PhotoLightbox } from "@/components/ui/PhotoLightbox"
+import { Z_CLASS, Z_INDEX } from "@/lib/ui/z-index"
 
 const photos = [
   { id: "p1", url: "http://127.0.0.1:54321/storage/avant.jpg", filename: "avant.jpg", metadata: { phase: "avant", comment: "Avant travaux" } },
@@ -38,10 +39,11 @@ describe("PhotoLightbox", () => {
     expect(screen.getByText("v3 · Karim B. · après")).toBeInTheDocument()
   })
 
-  it("should sit above the correction dialog (z-index 1400)", () => {
+  it("passe au-dessus des dialogues et des confirmations (étage « visionneuse »)", () => {
     renderLightbox()
     const dialog = screen.getByRole("dialog", { name: /Photo agrandie/i })
-    expect(dialog.className).toContain("z-[1400]")
+    expect(dialog.className).toContain(Z_CLASS.visionneuse)
+    expect(Z_INDEX.visionneuse).toBeGreaterThan(Z_INDEX.confirmation)
   })
 
   it("should close on Escape", () => {

@@ -106,6 +106,12 @@
   .badge-info { background: var(--info-bg); color: var(--info); }
 
 
+  /*
+   * Voile des surfaces modales : APPARENCE UNIQUEMENT.
+   * Le z-index n'est volontairement pas déclaré ici : il est porté par une
+   * classe Tailwind issue de l'échelle unique (src/lib/ui/z-index.ts), sinon
+   * on aurait deux sources de vérité pour la superposition.
+   */
   .modal-overlay,
   .shadcn-dialog-overlay {
     background: var(--backdrop-color);
@@ -114,7 +120,6 @@
     animation: fadeIn var(--transition-base) var(--transition-easing);
     position: fixed;
     inset: 0;
-    z-index: 40;
     transition: backdrop-filter var(--transition-base) var(--transition-easing), background-color var(--transition-base) var(--transition-easing);
   }
 

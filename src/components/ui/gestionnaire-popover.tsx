@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 export interface SelectableUser {
   id: string
@@ -136,7 +137,7 @@ export function GestionnairePopover({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className={cn("w-64 p-2 z-[100]", contentClassName)}
+        className={cn("w-64 p-2", Z_CLASS.flottant, contentClassName)}
         align="start"
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}

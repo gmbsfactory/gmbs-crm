@@ -33,6 +33,7 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { ReminderMentionInput } from "@/components/interventions/ReminderMentionInput"
 import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 import { toast } from "sonner"
 import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
@@ -50,7 +51,9 @@ type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogP
 const NoteDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProps>(
   ({ className, ...props }, ref) => (
     <AlertDialogPortal>
-      <AlertDialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/20 pointer-events-none" />
+      <AlertDialogPrimitive.Overlay
+        className={cn("fixed inset-0 bg-black/20 pointer-events-none", Z_CLASS.dialogueVoile)}
+      />
       <AlertDialogPrimitive.Content ref={ref} className={className} {...props} />
     </AlertDialogPortal>
   ),
@@ -65,7 +68,7 @@ const SmsDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProps
       <AlertDialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed left-[50%] top-[50%] z-[201] grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+          "fixed left-[50%] top-[50%] " + Z_CLASS.dialogue + " grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
           className
         )}
         {...props}
@@ -1060,7 +1063,7 @@ GMBS`
         <NoteDialogContent
           ref={noteDialogContentRef}
           className={cn(
-            "note-reminder-dialog fixed z-[110] w-[min(448px,calc(100vw-32px))] max-w-md rounded-lg border border-border bg-popover p-6 shadow-xl focus:outline-none",
+            "note-reminder-dialog fixed " + Z_CLASS.dialogue + " w-[min(448px,calc(100vw-32px))] max-w-md rounded-lg border border-border bg-popover p-6 shadow-xl focus:outline-none",
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right-4 data-[state=closed]:slide-out-to-right-4 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
           )}
           style={{

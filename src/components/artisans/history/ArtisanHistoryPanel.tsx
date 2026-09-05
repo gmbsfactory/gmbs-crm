@@ -321,8 +321,7 @@ export function ArtisanHistoryPanel({ artisanId, isOpen, onClose }: ArtisanHisto
       <SheetContent
         side="right"
         hideCloseButton
-        overlayClassName="!z-[110]"
-        className="history-panel !z-[120] flex h-full w-[440px] max-w-[94vw] flex-col p-0 sm:w-[500px] sm:max-w-[540px]"
+        className="history-panel flex h-full w-[440px] max-w-[94vw] flex-col p-0 sm:w-[500px] sm:max-w-[540px]"
       >
         {/* Header */}
         <div className="history-panel-header">

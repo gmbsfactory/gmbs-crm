@@ -691,8 +691,7 @@ export function EmailEditModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
-        className="w-[85vw] max-w-[85vw] h-[90vh] max-h-[90vh] overflow-hidden z-[80] p-0 flex"
-        overlayClassName="z-[75]"
+        className="w-[85vw] max-w-[85vw] h-[90vh] max-h-[90vh] overflow-hidden p-0 flex"
         onEscapeKeyDown={(event) => {
           // Ne pas fermer le modal email pendant l'envoi ou quand la confirmation prix SST est ouverte
           if (isSending || showSstPriceConfirm) event.preventDefault();

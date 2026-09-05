@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import { useDocumentReclassification } from "@/hooks/useDocumentReclassification"
 import { DocumentPreview } from "@/components/documents/DocumentPreview"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 interface DocumentReclassificationModalProps {
   open: boolean
@@ -102,8 +103,7 @@ export function DocumentReclassificationModal({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="max-w-2xl max-h-[85vh] flex flex-col z-[80]"
-          overlayStyle={{ zIndex: 75 }}
+          className="max-w-2xl max-h-[85vh] flex flex-col"
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -268,8 +268,8 @@ export function DocumentReclassificationModal({
       {/* Modal aperçu document */}
       <Dialog open={!!previewDoc} onOpenChange={(isOpen) => { if (!isOpen) setPreviewDoc(null) }}>
         <DialogContent
-          className="max-w-3xl max-h-[90vh] flex flex-col z-[90]"
-          overlayStyle={{ zIndex: 85 }}
+          className={`max-w-3xl max-h-[90vh] flex flex-col ${Z_CLASS.dialogueImbrique}`}
+          overlayClassName={Z_CLASS.dialogueImbriqueVoile}
         >
           <DialogHeader>
             <DialogTitle className="truncate text-sm font-medium pr-8">

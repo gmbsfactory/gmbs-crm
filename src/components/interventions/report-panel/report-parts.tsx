@@ -280,7 +280,7 @@ export function RejectDialog({
       }}
       modal
     >
-      <DialogContent className="sm:max-w-md !z-[1300]" overlayClassName="!z-[1200]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Demander une correction</DialogTitle>
           <DialogDescription>

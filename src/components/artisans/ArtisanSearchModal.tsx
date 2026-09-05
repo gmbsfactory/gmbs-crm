@@ -27,6 +27,7 @@ import {
   type ArtisanDisplaySource,
 } from "@/lib/artisans"
 import type { ArtisanSearchResult } from "@/lib/artisans/types"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 export type { ArtisanSearchResult }
 
@@ -289,7 +290,7 @@ export function ArtisanSearchModal({
             e.preventDefault()
           }}
           className={cn(
-            "z-[10000] flex max-h-[70vh] flex-col rounded-lg border bg-popover text-popover-foreground shadow-2xl outline-none",
+            Z_CLASS.flottant + " flex max-h-[70vh] flex-col rounded-lg border bg-popover text-popover-foreground shadow-2xl outline-none",
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
           )}
           style={{ width: POPOVER_WIDTH, maxWidth: "90vw" }}

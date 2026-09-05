@@ -24,6 +24,7 @@ import type { InterventionView } from "@/types/intervention-view"
 import { isCheckStatus } from "@/lib/interventions/checkStatus"
 import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 import {
   AlertCircle,
   Calendar,
@@ -595,7 +596,7 @@ export default function InterventionCard({
                     {showDocumentAnimation &&
                       createPortal(
                         <div
-                          className="fixed z-[2000]"
+                          className={cn("fixed", Z_CLASS.flottantPage)}
                           style={{ top: animationPosition.top, left: animationPosition.left }}
                           onMouseEnter={() => setShowDocumentAnimation(true)}
                           onMouseLeave={() => {

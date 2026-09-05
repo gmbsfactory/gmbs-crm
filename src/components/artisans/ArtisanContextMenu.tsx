@@ -15,6 +15,7 @@ import { FileText, Archive } from "lucide-react"
 import { useArtisanContextMenu } from "@/hooks/useArtisanContextMenu"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
 import { usePermissions } from "@/hooks/usePermissions"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 interface ArtisanContextMenuContentProps {
   artisanId: string
@@ -68,7 +69,7 @@ export function ArtisanContextMenuContent({
                       </ContextMenuItem>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="right" className="z-[10001]">
+                  <TooltipContent side="right" className={Z_CLASS.flottantImbrique}>
                     Artisan déjà archivé
                   </TooltipContent>
                 </Tooltip>

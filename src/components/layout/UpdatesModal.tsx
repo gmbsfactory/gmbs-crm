@@ -11,6 +11,7 @@ import { useUpdatesRealtime } from "@/hooks/useUpdatesRealtime"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import type { AppUpdateWithViewStatus } from "@/types/app-updates"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 const severityBadge: Record<string, string> = {
   info: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
@@ -119,7 +120,7 @@ export default function UpdatesModal() {
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50">
+    <div className={`fixed inset-0 ${Z_CLASS.surModal} flex items-center justify-center bg-black/50`}>
       <div className="bg-background border rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col mx-4">
         {/* Header */}
         <div className="px-6 py-4 border-b shrink-0">

@@ -6,6 +6,7 @@ import { AnimatePresence, motion, type Variants } from "framer-motion"
 import FocusTrap from "focus-trap-react"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 // ID du conteneur portal statique
 const PORTAL_CONTAINER_ID = "modal-portal-root"
@@ -69,20 +70,20 @@ const getModalStyle = (mode: ModalDisplayMode) => {
   switch (mode) {
     case "halfpage":
       return {
-        container: "fixed top-0 right-0 z-[70] h-full w-1/2 p-4",
+        container: `fixed top-0 right-0 ${Z_CLASS.modal} h-full w-1/2 p-4`,
         wrapper: "pointer-events-none h-full w-full",
         content: "pointer-events-auto flex h-full w-full flex-col overflow-hidden shadcn-sheet-content",
       }
     case "centerpage":
       return {
-        container: "fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none",
+        container: `fixed inset-0 ${Z_CLASS.modal} flex items-center justify-center p-4 pointer-events-none`,
         wrapper: "flex h-full w-full items-center justify-center",
         content:
           "pointer-events-auto modal-surface flex h-[85vh] w-full max-w-[80vw] flex-col overflow-hidden p-0",
       }
     case "fullpage":
       return {
-        container: "fixed inset-0 z-[70] flex bg-background",
+        container: `fixed inset-0 ${Z_CLASS.modal} flex bg-background`,
         wrapper: "h-full w-full",
         content: "pointer-events-auto modal-surface-full flex h-full w-full flex-col overflow-y-auto",
       }
@@ -193,7 +194,7 @@ export function GenericModal({
               <motion.div
                 role="presentation"
                 aria-hidden
-                className="modal-overlay z-[60]"
+                className={cn("modal-overlay", Z_CLASS.modalVoile)}
                 initial="initial"
                 animate="animate"
                 exit="exit"

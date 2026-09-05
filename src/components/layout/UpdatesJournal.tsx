@@ -12,6 +12,7 @@ import { getSeverityConfig } from "@/features/settings/_components/updates/sever
 import type { AppUpdateWithViewStatus } from "@/types/app-updates"
 import type { AppUpdateSeverity } from "@/types/app-updates"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 import { ChevronRight, X, ScrollText } from "lucide-react"
 
 /* ── Entrée individuelle ── */
@@ -177,7 +178,7 @@ export default function UpdatesJournal({ isOpen, onClose }: UpdatesJournalProps)
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[70] bg-black/30"
+            className={`fixed inset-0 ${Z_CLASS.panneauVoile} bg-black/30`}
             onClick={onClose}
           />
 
@@ -188,7 +189,7 @@ export default function UpdatesJournal({ isOpen, onClose }: UpdatesJournalProps)
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="fixed top-0 right-0 z-[71] h-full w-full max-w-[420px] bg-background border-l shadow-2xl flex flex-col"
+            className={`fixed top-0 right-0 ${Z_CLASS.panneau} h-full w-full max-w-[420px] bg-background border-l shadow-2xl flex flex-col`}
             role="dialog"
             aria-modal="true"
             aria-label="Journal des mises à jour"

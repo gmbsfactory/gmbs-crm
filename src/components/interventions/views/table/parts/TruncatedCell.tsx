@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 import { HighlightedText } from "./HighlightedText"
 
 type TruncatedCellProps = {
@@ -88,7 +89,7 @@ export function TruncatedCell({
       {portalElement && tooltipPos && tooltipString
         ? createPortal(
             <div
-              className="fixed z-[1000] max-w-sm break-words rounded-lg border-2 border-border bg-card p-3 text-sm font-normal text-card-foreground shadow-2xl whitespace-normal pointer-events-none"
+              className={cn("fixed", Z_CLASS.flottantPage, "max-w-sm break-words rounded-lg border-2 border-border bg-card p-3 text-sm font-normal text-card-foreground shadow-2xl whitespace-normal pointer-events-none")}
               style={{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }}
             >
               {tooltipString}

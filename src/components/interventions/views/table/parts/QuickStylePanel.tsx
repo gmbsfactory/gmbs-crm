@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 import { getPropertyLabel, getPropertySchema } from "@/types/property-schema"
 import {
   STYLE_ELIGIBLE_COLUMNS,
@@ -108,7 +109,7 @@ export function QuickStylePanel({
             <SelectTrigger {...PORTAL_MARKER} className="h-7 w-[78px] text-[0.7rem]">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent {...PORTAL_MARKER} className="z-[110]">
+            <SelectContent {...PORTAL_MARKER} className={Z_CLASS.flottant}>
               {TABLE_TEXT_SIZE_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
@@ -219,7 +220,7 @@ export function QuickStylePanel({
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent {...PORTAL_MARKER} className="z-[110]">
+            <SelectContent {...PORTAL_MARKER} className={Z_CLASS.flottant}>
               {TABLE_APPEARANCE_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}

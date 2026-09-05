@@ -111,9 +111,8 @@ export function StatusReasonModal({ open, type, onConfirm, onCancel, isSubmittin
       }}
       modal={true}
     >
-      <DialogContent 
-        className="sm:max-w-md !z-[1300]" 
-        overlayClassName="!z-[1200]"
+      <DialogContent
+        className="sm:max-w-md"
         onInteractOutside={(e) => {
           // Empêcher la fermeture en cliquant à l'extérieur pendant la soumission
           if (isSubmitting) {

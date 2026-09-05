@@ -4,6 +4,7 @@ import * as React from "react"
 import { Check, ChevronsUpDown, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 import { Button } from "@/components/ui/button"
 import {
     Command,
@@ -130,7 +131,7 @@ export function MultiSelect({
             </PopoverTrigger>
             <PopoverContent 
                 ref={popoverContentRef}
-                className="p-1 z-[10000]" 
+                className={cn("p-1", Z_CLASS.flottant)} 
                 align="start"
                 side="bottom"
                 style={{ width: popoverWidth ? `${popoverWidth}px` : undefined }}

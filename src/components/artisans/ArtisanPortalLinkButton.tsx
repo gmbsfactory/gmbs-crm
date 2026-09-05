@@ -116,7 +116,7 @@ export function ArtisanPortalLinkButton({ artisanId, artisanName, disabled, clas
       </Button>
 
       <Dialog open={link !== null} onOpenChange={(open) => { if (!open) setLink(null) }} modal>
-        <DialogContent className="sm:max-w-lg !z-[1300]" overlayClassName="!z-[1200]">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Lien portail{artisanName ? ` — ${artisanName}` : ""}</DialogTitle>
             <DialogDescription>

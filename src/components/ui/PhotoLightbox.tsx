@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 /** Photo affichable par la visionneuse (sous-ensemble de `PortalReportPhoto`). */
 export interface LightboxPhoto {
@@ -39,8 +40,9 @@ function phaseLabel(phase: string | null | undefined): string | null {
 /**
  * Visionneuse de photos plein écran.
  *
- * `z-index` **1400** : au-dessus de l'overlay du modal d'intervention (`z-100`)
- * et du dialog « Demander une correction » (`!z-[1300]` sur overlay `!z-[1200]`).
+ * `z-index` : étage `visionneuse` de l'échelle unique (src/lib/ui/z-index.ts).
+ * Au-dessus des dialogues et des confirmations, car la visionneuse peut être
+ * ouverte depuis n'importe lequel de ces étages.
  * Sous ce niveau, la visionneuse s'ouvrirait derrière la boîte de dialogue.
  *
  * Fermeture par Échap ou clic sur le fond ; navigation ← / → au clavier et par
@@ -88,7 +90,7 @@ export function PhotoLightbox({ photos, index, onClose, onIndexChange, caption }
 
   return (
     <div
-      className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/90 p-4"
+      className={`fixed inset-0 ${Z_CLASS.visionneuse} flex items-center justify-center bg-black/90 p-4`}
       role="dialog"
       aria-modal="true"
       aria-label="Photo agrandie"
