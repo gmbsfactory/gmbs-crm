@@ -548,6 +548,28 @@ const securityHeaders = [
 
 > **Note :** La directive `frame-src` a ete ajoutee pour autoriser l'affichage des documents PDF heberges sur Supabase Storage dans des iframes. Sans cette directive, les iframes retombent sur `default-src 'self'` et les PDFs Supabase sont bloques par le navigateur. L'ouverture dans un nouvel onglet n'est pas affectee car c'est une navigation directe, non soumise au CSP.
 
+#### Derogation pour une Supabase locale
+
+`connect-src` ne connait que `https://*.supabase.co`. Une pile Supabase locale
+repond sur `http://127.0.0.1:54321` (et `ws://` pour le Realtime) : sans
+derogation, le CRM est coupe de sa propre base — aucune requete REST, aucun
+websocket, et l'ecran de connexion echoue sans message explicite.
+
+`next.config.mjs` ajoute donc les quatre origines locales
+(`http://127.0.0.1:54321`, `http://localhost:54321`, et leurs equivalents `ws://`)
+**quand `NEXT_PUBLIC_SUPABASE_URL` designe `127.0.0.1` ou `localhost`**.
+
+Le declencheur est l'URL configuree, pas `NODE_ENV`. La demo locale
+(`scripts/demo/start-crm-prod.sh`) est un build de production : elle tourne avec
+`NODE_ENV=production` tout en pointant vers la base locale. Une condition sur
+`NODE_ENV === 'development'` disparaissait donc des qu'on compilait, et le
+symptome n'apparaissait qu'en mode compile.
+
+En deploiement reel l'URL vaut `https://<projet>.supabase.co` : la condition est
+fausse et la politique est identique, octet pour octet, a celle documentee
+ci-dessus. Les tests `tests/unit/lib/security-headers.test.ts` verrouillent les
+deux branches.
+
 ### Multi-tab synchronisation
 
 Le logout est propage a tous les onglets via `BroadcastChannel` :

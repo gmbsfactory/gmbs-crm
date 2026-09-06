@@ -29,13 +29,33 @@ const EXPECTED_HEADERS: Record<string, string> = {
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
 }
 
+/**
+ * `headers()` lit `NEXT_PUBLIC_SUPABASE_URL` à chaque appel : on la fixe donc
+ * explicitement pour ne pas dépendre du `.env` de la machine qui lance les
+ * tests. Une URL distante correspond au déploiement réel.
+ */
+async function headersAvecSupabase(url: string): Promise<HeaderGroup[]> {
+  const precedent = process.env.NEXT_PUBLIC_SUPABASE_URL
+  process.env.NEXT_PUBLIC_SUPABASE_URL = url
+  try {
+    const config = await import('../../../next.config.mjs')
+    return await config.default.headers()
+  } finally {
+    if (precedent === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = precedent
+  }
+}
+
+const cspDe = (groupes: HeaderGroup[]): string =>
+  groupes
+    .find((g) => g.source === '/(.*)')!
+    .headers.find((h) => h.key === 'Content-Security-Policy')!.value
+
 describe('SEC-004 – Security HTTP Headers', () => {
   let headerGroups: HeaderGroup[]
 
   beforeAll(async () => {
-    const config = await import('../../../next.config.mjs')
-    const nextConfig = config.default
-    headerGroups = await nextConfig.headers()
+    headerGroups = await headersAvecSupabase('https://projet-distant.supabase.co')
   })
 
   it('should have a catch-all /(.*) header group', () => {
@@ -98,5 +118,41 @@ describe('SEC-004 – Security HTTP Headers', () => {
       (h) => h.key === 'Content-Security-Policy',
     )!
     expect(csp.value).toContain("default-src 'self'")
+  })
+})
+
+/**
+ * La démo locale est un build de production qui pointe vers une Supabase sur
+ * 127.0.0.1 : sans dérogation, la CSP coupe le CRM de sa propre base (REST et
+ * websocket Realtime). La dérogation se déduit de l'URL configurée, jamais de
+ * NODE_ENV — sinon elle disparaît dès qu'on compile.
+ */
+describe('SEC-004 – dérogation Supabase locale', () => {
+  const LOCALES = [
+    'http://127.0.0.1:54321',
+    'http://localhost:54321',
+    'ws://127.0.0.1:54321',
+    'ws://localhost:54321',
+  ]
+
+  it.each(['http://127.0.0.1:54321', 'http://localhost:54321'])(
+    'autorise la base locale quand NEXT_PUBLIC_SUPABASE_URL vaut %s',
+    async (url) => {
+      const csp = cspDe(await headersAvecSupabase(url))
+      for (const origine of LOCALES) expect(csp).toContain(origine)
+    },
+  )
+
+  it("n'autorise aucune origine locale face à une Supabase distante", async () => {
+    const csp = cspDe(await headersAvecSupabase('https://projet-distant.supabase.co'))
+    for (const origine of LOCALES) expect(csp).not.toContain(origine)
+    expect(csp).toBe(EXPECTED_HEADERS['Content-Security-Policy'])
+  })
+
+  it("n'autorise aucune origine locale quand l'URL est absente ou illisible", async () => {
+    for (const url of ['', 'pas-une-url']) {
+      const csp = cspDe(await headersAvecSupabase(url))
+      expect(csp).toBe(EXPECTED_HEADERS['Content-Security-Policy'])
+    }
   })
 })

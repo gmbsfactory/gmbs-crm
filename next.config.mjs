@@ -67,8 +67,23 @@ const nextConfig = {
     return config;
   },
   async headers() {
-    const isDev = process.env.NODE_ENV === 'development'
-    const devSupabase = isDev ? ' http://127.0.0.1:54321 http://localhost:54321 ws://127.0.0.1:54321 ws://localhost:54321' : ''
+    // La dérogation pour Supabase en local se déduit de l'URL réellement
+    // configurée, et non de NODE_ENV : la démo locale est un build de
+    // production (NODE_ENV=production) qui pointe vers 127.0.0.1:54321, et la
+    // CSP la coupait alors de sa propre base — REST comme websocket Realtime.
+    // En déploiement réel l'URL est https://<projet>.supabase.co : la
+    // condition est fausse et la politique reste identique à l'existante.
+    const supabaseHost = (() => {
+      try {
+        return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname
+      } catch {
+        return ''
+      }
+    })()
+    const isLocalSupabase = supabaseHost === '127.0.0.1' || supabaseHost === 'localhost'
+    const devSupabase = isLocalSupabase
+      ? ' http://127.0.0.1:54321 http://localhost:54321 ws://127.0.0.1:54321 ws://localhost:54321'
+      : ''
     return [
       {
         source: "/(.*)",
