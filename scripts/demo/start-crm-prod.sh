@@ -26,6 +26,12 @@ ENV_FILE=".env.demo.local"
 set -a; # shellcheck disable=SC1090
 source "$ENV_FILE"; set +a
 
+# .env.demo.local force NODE_ENV=development pour le mode dev. « next build »
+# refuse cette valeur : la génération des pages d'erreur échoue avec
+# « <Html> should not be imported outside of pages/_document ». On impose donc
+# la valeur de production pour la compilation ET pour le service.
+export NODE_ENV=production
+
 # --- Garde-fous anti-production (identiques à start-crm.sh) ---
 case "${NEXT_PUBLIC_SUPABASE_URL:-}" in
   http://127.0.0.1:*|http://localhost:*) ;;
