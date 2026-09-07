@@ -342,6 +342,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     refData: data.refData,
     refDataLoading: data.refDataLoading,
     currentUser: data.currentUser,
+    currentUserLoading: data.currentUserLoading,
     formData,
     setFormData,
     isSubmitting,

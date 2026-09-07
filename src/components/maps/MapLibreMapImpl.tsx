@@ -1,21 +1,39 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { config as maptilerConfig } from "@maptiler/sdk"
 import maplibregl from "maplibre-gl"
-import "@maptiler/sdk/dist/maptiler-sdk.css"
 import "maplibre-gl/dist/maplibre-gl.css"
 import type { FeatureCollection } from "geojson"
 
+import { Box, Map as MapIcon } from "lucide-react"
+
+import { RELIEF_PITCH_DEGREES, useMapViewMode } from "@/hooks/useMapViewMode"
 import { cn } from "@/lib/utils"
 
 import type { MapLibreMapProps } from "./MapLibreMap"
+
+/**
+ * OpenFreeMap (style Liberty) : tuiles OpenMapTiles gratuites, sans cle API ni quota.
+ * Le schema est identique a celui de MapTiler, donc la source `openmaptiles` utilisee
+ * par la couche 3D reste valide. Les glyphes ne fournissent que la famille Noto Sans.
+ */
+const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+const MAP_FONT_STACK = ["Noto Sans Bold"]
+
+/**
+ * Cadrage : l'ancien padding de 600px depassait la hauteur du conteneur (400-500px),
+ * ce qui rendait le fitBounds degenere. maxZoom borne aussi le streaming de tuiles.
+ */
+const FIT_PADDING_PX = 48
+const FIT_DURATION_MS = 600
+const MAX_FIT_ZOOM = 16
 
 export function MapLibreMapImpl({
   lat,
   lng,
   zoom = 14,
-  enable3DBuildings = true,
+  pitch = 0,
+  enable3DBuildings = false,
   onLocationChange,
   height = "400px",
   className,
@@ -23,6 +41,7 @@ export function MapLibreMapImpl({
   circleRadiusKm,
   selectedConnection,
   onMarkerClick,
+  viewModeStorageKey,
 }: MapLibreMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -39,28 +58,32 @@ export function MapLibreMapImpl({
   const onLocationChangeRef = useRef<MapLibreMapProps["onLocationChange"]>(onLocationChange)
   const onMarkerClickRef = useRef<MapLibreMapProps["onMarkerClick"]>(onMarkerClick)
 
-  const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_API_KEY
+  const showViewModeToggle = Boolean(viewModeStorageKey)
+  const [viewMode, setViewMode] = useMapViewMode(
+    viewModeStorageKey,
+    pitch > 0 || enable3DBuildings ? "relief" : "flat",
+  )
+
+  // Quand le selecteur est affiche, le choix de l'utilisateur fait autorite ;
+  // sinon les props gardent la main (cartes non interactives, tests, previews).
+  const effectivePitch = showViewModeToggle ? (viewMode === "relief" ? RELIEF_PITCH_DEGREES : 0) : pitch
+  const effective3DBuildings = showViewModeToggle ? viewMode === "relief" : enable3DBuildings
+
+  const pitchRef = useRef(effectivePitch)
+  const effective3DBuildingsRef = useRef(effective3DBuildings)
+  effective3DBuildingsRef.current = effective3DBuildings
 
   useEffect(() => {
     if (!containerRef.current) return
 
-    if (!maptilerKey) {
-      setError("Clé MapTiler manquante")
-      return
-    }
-
     try {
-      if (maptilerKey && maptilerConfig.apiKey !== maptilerKey) {
-        maptilerConfig.apiKey = maptilerKey
-      }
-
       const mapInstance = new maplibregl.Map({
         container: containerRef.current,
-        style: `https://api.maptiler.com/maps/streets/style.json?key=${maptilerKey}`,
+        style: MAP_STYLE_URL,
         center: initialCenterRef.current,
         zoom,
-        pitch: 50,
-        bearing: -17.6,
+        pitch: pitchRef.current,
+        bearing: 0,
         antialias: true,
       } as maplibregl.MapOptions)
 
@@ -113,15 +136,14 @@ export function MapLibreMapImpl({
           connectionSource.setData(emptyConnectionFeatureCollection())
         }
 
-        if (enable3DBuildings) {
-          add3DBuildingsLayer(mapInstance)
-        }
-
-        fitMapToCurrentExtent(mapInstance, lat, lng, circleRadiusKm, selectedConnection)
+        setBuildingsExtrusion(mapInstance, effective3DBuildingsRef.current)
       }
 
-      mapInstance.on("style.load", handleLoad)
-      mapInstance.on("load", handleLoad)
+      // Un seul abonnement a `load`. Le cadrage initial n'est volontairement pas
+      // declenche ici : l'effet dependant de [lat, lng, zoom, ...] s'execute des le
+      // montage et met deja son propre fitMapToCurrentExtent en file via
+      // runWhenStyleLoaded. L'appeler aussi ici produirait deux animations camera.
+      mapInstance.once("load", handleLoad)
 
       mapInstance.on("error", (event) => {
         console.error("[MapLibre] map error:", event?.error ?? event)
@@ -187,7 +209,7 @@ export function MapLibreMapImpl({
     // Les valeurs lat, lng, zoom, circleRadiusKm, enable3DBuildings, selectedConnection sont gérées
     // par des useEffect séparés pour éviter les réinitialisations inutiles de la carte
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maptilerKey])
+  }, [])
 
   useEffect(() => {
     onLocationChangeRef.current = onLocationChange
@@ -201,10 +223,11 @@ export function MapLibreMapImpl({
     const markerInstance = markerRef.current
     if (!mapInstance || !markerInstance) return
 
-    const nextCenter: [number, number] = [lng, lat]
-    markerInstance.setLngLat(nextCenter)
-    mapInstance.easeTo({ center: nextCenter, zoom, duration: 500 })
-  }, [lat, lng, zoom])
+    // Ce hook ne deplace que le marqueur. Le cadrage est gere exclusivement par
+    // fitMapToCurrentExtent : deux animations concurrentes sur les memes deps
+    // faisaient traverser les niveaux de zoom deux fois et streamaient les tuiles en double.
+    markerInstance.setLngLat([lng, lat])
+  }, [lat, lng])
 
   useEffect(() => {
     const mapInstance = mapRef.current
@@ -282,6 +305,15 @@ export function MapLibreMapImpl({
   }, [onMarkerClick])
 
   useEffect(() => {
+    const previousPitch = pitchRef.current
+    pitchRef.current = effectivePitch
+    const mapInstance = mapRef.current
+    // Au montage le pitch est deja applique via les options de la carte.
+    if (!mapInstance || previousPitch === effectivePitch) return
+    mapInstance.easeTo({ pitch: effectivePitch, duration: FIT_DURATION_MS })
+  }, [effectivePitch])
+
+  useEffect(() => {
     const mapInstance = mapRef.current
     if (!mapInstance) return
 
@@ -290,15 +322,8 @@ export function MapLibreMapImpl({
       return
     }
 
-    const hasLayer = Boolean(mapInstance.getLayer("3d-buildings"))
-    if (enable3DBuildings && !hasLayer) {
-      add3DBuildingsLayer(mapInstance)
-    }
-
-    if (!enable3DBuildings && hasLayer) {
-      mapInstance.removeLayer("3d-buildings")
-    }
-  }, [enable3DBuildings])
+    setBuildingsExtrusion(mapInstance, effective3DBuildings)
+  }, [effective3DBuildings])
 
   useEffect(() => {
     const mapInstance = mapRef.current
@@ -370,8 +395,8 @@ export function MapLibreMapImpl({
     const mapInstance = mapRef.current
     if (!mapInstance) return
 
-    fitMapToCurrentExtent(mapInstance, lat, lng, circleRadiusKm, selectedConnection)
-  }, [lat, lng, circleRadiusKm, selectedConnection])
+    fitMapToCurrentExtent(mapInstance, lat, lng, zoom, circleRadiusKm, selectedConnection)
+  }, [lat, lng, zoom, circleRadiusKm, selectedConnection])
 
   if (error) {
     return (
@@ -381,13 +406,76 @@ export function MapLibreMapImpl({
     )
   }
 
-  return <div ref={containerRef} className={cn("w-full overflow-hidden rounded-lg", className)} style={{ height }} />
+  const mapSurface = <div ref={containerRef} className="h-full w-full" />
+
+  if (!showViewModeToggle) {
+    return (
+      <div className={cn("w-full overflow-hidden rounded-lg", className)} style={{ height }}>
+        {mapSurface}
+      </div>
+    )
+  }
+
+  const isRelief = viewMode === "relief"
+
+  return (
+    <div className={cn("relative w-full overflow-hidden rounded-lg", className)} style={{ height }}>
+      {mapSurface}
+      <button
+        type="button"
+        onClick={() => setViewMode(isRelief ? "flat" : "relief")}
+        // Positionne sous le NavigationControl de MapLibre (top-right) pour ne pas le recouvrir.
+        className="absolute right-2.5 top-[104px] z-10 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/95 px-2 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm backdrop-blur transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-pressed={isRelief}
+        title={
+          isRelief
+            ? "Passer en vue plan (plus rapide a charger)"
+            : "Passer en vue relief (batiments 3D, plus de donnees a charger)"
+        }
+      >
+        {isRelief ? <Box className="h-3.5 w-3.5" aria-hidden /> : <MapIcon className="h-3.5 w-3.5" aria-hidden />}
+        <span>{isRelief ? "Relief" : "Plan"}</span>
+      </button>
+    </div>
+  )
 }
 
 export default MapLibreMapImpl
 
+/** Couche d'extrusion fournie par le style Liberty, visible par defaut. */
+const STYLE_BUILDINGS_LAYER_ID = "building-3d"
+/** Couche de repli, ajoutee seulement si le style n'en fournit pas. */
+const FALLBACK_BUILDINGS_LAYER_ID = "3d-buildings"
+
+/**
+ * Active ou desactive l'extrusion 3D des batiments.
+ *
+ * Liberty embarque deja une couche `building-3d` affichee par defaut : on pilote sa
+ * visibilite plutot que d'en empiler une seconde (qui provoquerait du z-fighting).
+ * Le repli ne sert qu'aux styles depourvus de cette couche.
+ */
+function setBuildingsExtrusion(map: maplibregl.Map, enabled: boolean) {
+  if (!map.isStyleLoaded()) {
+    return
+  }
+
+  if (map.getLayer(STYLE_BUILDINGS_LAYER_ID)) {
+    map.setLayoutProperty(STYLE_BUILDINGS_LAYER_ID, "visibility", enabled ? "visible" : "none")
+    return
+  }
+
+  const hasFallback = Boolean(map.getLayer(FALLBACK_BUILDINGS_LAYER_ID))
+  if (enabled && !hasFallback) {
+    add3DBuildingsLayer(map)
+    return
+  }
+  if (!enabled && hasFallback) {
+    map.removeLayer(FALLBACK_BUILDINGS_LAYER_ID)
+  }
+}
+
 function add3DBuildingsLayer(map: maplibregl.Map) {
-  if (map.getLayer("3d-buildings")) {
+  if (map.getLayer(FALLBACK_BUILDINGS_LAYER_ID)) {
     return
   }
 
@@ -418,7 +506,7 @@ function add3DBuildingsLayer(map: maplibregl.Map) {
 
   map.addLayer(
     {
-      id: "3d-buildings",
+      id: FALLBACK_BUILDINGS_LAYER_ID,
       type: "fill-extrusion",
       source: sourceId,
       "source-layer": sourceLayer,
@@ -579,7 +667,7 @@ function ensureConnectionLayers(
       filter: ["==", ["get", "featureType"], "connection-label"],
       layout: {
         "text-field": ["get", "labelText"],
-        "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+        "text-font": MAP_FONT_STACK,
         "text-size": 12,
         "text-offset": [0, -1],
       },
@@ -678,6 +766,7 @@ function fitMapToCurrentExtent(
   map: maplibregl.Map,
   lat: number,
   lng: number,
+  zoom: number,
   circleRadiusKm?: number,
   selectedConnection?: { lat: number; lng: number },
 ) {
@@ -691,17 +780,25 @@ function fitMapToCurrentExtent(
       const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat])
       bounds.extend([targetLng, targetLat])
       map.fitBounds(bounds, {
-        padding: 600,
-        duration: 600,
-        maxZoom: 24,
+        padding: FIT_PADDING_PX,
+        duration: FIT_DURATION_MS,
+        maxZoom: MAX_FIT_ZOOM,
       })
-    } else if (hasCircle && circleRadiusKm) {
-      const bounds = boundsFromCircle(lat, lng, circleRadiusKm)
-      map.fitBounds(bounds, {
-        padding: 20,
-        duration: 600,
-      })
+      return
     }
+
+    if (hasCircle && circleRadiusKm) {
+      map.fitBounds(boundsFromCircle(lat, lng, circleRadiusKm), {
+        padding: FIT_PADDING_PX,
+        duration: FIT_DURATION_MS,
+        maxZoom: MAX_FIT_ZOOM,
+      })
+      return
+    }
+
+    // Aucun extent a cadrer : ce hook reste la seule autorite camera, donc il
+    // doit recentrer lui-meme (sinon la carte ne suivrait plus le marqueur).
+    map.easeTo({ center: [lng, lat], zoom, duration: FIT_DURATION_MS })
   })
 }
 

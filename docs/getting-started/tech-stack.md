@@ -95,7 +95,7 @@ Zod permet de definir un schema une fois et d'en deriver : le type TypeScript (i
 | Technologie | Version | Role |
 |-------------|---------|------|
 | **MapLibre GL** | 5.9.0 | Rendu de cartes interactives (alternative open-source a Mapbox GL). Utilise pour la localisation des interventions et la recherche d'artisans a proximite. |
-| **MapTiler SDK** | 3.8.0 | Fournisseur de tuiles cartographiques pour MapLibre. Necessite une cle API (`NEXT_PUBLIC_MAPTILER_API_KEY`). |
+| **OpenFreeMap** | - | Fournisseur de tuiles (style Liberty, schema OpenMapTiles) pour MapLibre. Gratuit, sans cle API ni quota : aucune variable d'environnement a configurer. Service communautaire sans SLA contractuel. |
 
 ### Pourquoi MapLibre plutot que Google Maps ?
 

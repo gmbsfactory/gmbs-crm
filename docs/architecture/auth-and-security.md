@@ -452,7 +452,24 @@ Les RLS policies PostgreSQL protegent les donnees au niveau de la base :
 
 ### Mapping auth -> public
 
-La table `auth_user_mapping` fait le lien entre `auth.users` (Supabase Auth) et `public.users` (donnees metier) :
+**`auth.users.id` n'est pas `public.users.id`.** Les deux identifiants ne
+coincident que pour une minorite de comptes. Toute policy ou requete qui a
+besoin de passer de l'un a l'autre doit utiliser la fonction
+`public.get_public_user_id()`, **jamais** comparer `auth.uid()` directement a
+une colonne referencant `public.users(id)`.
+
+Trois mecanismes de liaison coexistent pour raisons historiques, aucun ne
+couvrant a lui seul l'ensemble des comptes. Depuis la migration `99076`,
+`get_public_user_id()` les essaie dans cet ordre :
+
+| Ordre | Source | Introduit par |
+|-------|--------|---------------|
+| 1 | Table `auth_user_mapping` | `00041` |
+| 2 | Colonne `users.auth_user_id` | `00031` |
+| 3 | Email, compare en `lower()` | repli |
+
+`get_current_user_id()` (alias historique de `00031`) delegue desormais a
+`get_public_user_id()` : il n'existe plus qu'une seule logique de resolution.
 
 ```sql
 CREATE TABLE auth_user_mapping (
@@ -461,6 +478,9 @@ CREATE TABLE auth_user_mapping (
   PRIMARY KEY (auth_user_id)
 );
 ```
+
+> Detail des policies et pieges associes :
+> [docs/database/rls-policies.md](../database/rls-policies.md).
 
 ### Policies typiques
 
@@ -474,20 +494,11 @@ USING (is_active = true);
 CREATE POLICY "Users can update their interventions"
 ON interventions FOR UPDATE
 USING (
-  assigned_user_id IN (
-    SELECT public_user_id FROM auth_user_mapping
-    WHERE auth_user_id = auth.uid()
-  )
-  OR EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN roles r ON ur.role_id = r.id
-    WHERE ur.user_id IN (
-      SELECT public_user_id FROM auth_user_mapping
-      WHERE auth_user_id = auth.uid()
-    )
-    AND r.name = 'admin'
-  )
+  assigned_user_id = public.get_public_user_id()
+  OR public.user_has_role('admin')
 );
+-- Ne pas reproduire la resolution a la main : passer par les helpers, sinon
+-- les comptes lies par users.auth_user_id ou par email sont exclus.
 ```
 
 ### Bypass RLS (scripts Node.js)

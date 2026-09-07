@@ -86,7 +86,7 @@ Jobs parallèles:
 
 Job séquentiel:
   build      → npm run build (après lint + typecheck + test)
-             → nécessite secrets: SUPABASE_URL, SUPABASE_ANON_KEY, MAPTILER_KEY
+             → nécessite secrets: SUPABASE_URL, SUPABASE_ANON_KEY
 ```
 
 ### Exigences CI
