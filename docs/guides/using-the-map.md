@@ -41,7 +41,7 @@ src/
 
 **Technologies :**
 - MapLibre GL 5.9 pour le rendu cartographique
-- MapTiler SDK 3.8 pour les tuiles
+- OpenFreeMap (style Liberty) pour les tuiles : OpenMapTiles gratuit, sans cle API ni quota
 - 3 providers de geocodage avec fallback automatique
 
 ---
@@ -79,7 +79,8 @@ interface MapLibreMapProps {
   lat: number                  // Latitude du centre
   lng: number                  // Longitude du centre
   zoom?: number                // Niveau de zoom (defaut: 13)
-  enable3DBuildings?: boolean  // Batiments 3D
+  pitch?: number               // Inclinaison camera en degres (defaut: 0, vue a plat)
+  enable3DBuildings?: boolean  // Batiments 3D (defaut: false)
   height?: string              // Hauteur CSS (defaut: "100%")
   className?: string           // Classes CSS additionnelles
   onLocationChange?: (lat: number, lng: number) => void  // Callback au deplacement
@@ -97,8 +98,58 @@ interface MapLibreMapProps {
     distanceLabel?: string
   }
   onMarkerClick?: (id: string) => void  // Callback au clic sur un marqueur
+  viewModeStorageKey?: string  // Affiche le selecteur Plan/Relief et memorise le choix
 }
 ```
+
+### Cout de rendu : pitch et batiments 3D
+
+`pitch` et `enable3DBuildings` sont a `0` / `false` par defaut, volontairement.
+
+Une camera inclinee cadre jusqu'a l'horizon : MapLibre charge alors une empreinte de
+tuiles bien plus large qu'une vue a plat (champ proche en haute resolution *plus* une
+longue trainee vers l'horizon). L'extrusion 3D, elle, force le chargement des tuiles
+`z >= 15` sur toute la vue visible.
+
+Les deux combines multipliaient les requetes de tuiles par plusieurs fois a chaque
+ouverture de formulaire d'intervention. C'est ce qui a fait exploser le quota du
+fournisseur precedent. Les activer reste possible ponctuellement (`pitch={50}`,
+`enable3DBuildings`), mais c'est un choix a assumer sur une vue affichee en permanence.
+
+Le cadrage est par ailleurs borne a `maxZoom: 16` avec un padding de 48px : au-dela,
+chaque animation de camera traverse des niveaux de zoom supplementaires et streame
+des tuiles inutiles.
+
+### Selecteur Plan / Relief
+
+Passer `viewModeStorageKey` affiche un bouton en surimpression sur la carte qui laisse
+l'utilisateur basculer entre les deux modes. Son choix est memorise dans `localStorage`
+et restitue a chaque ouverture suivante.
+
+```tsx
+<MapLibreMap
+  lat={lat}
+  lng={lng}
+  viewModeStorageKey={`gmbs:intervention-form:map-view-mode:${currentUser.id}`}
+/>
+```
+
+La cle doit porter l'id utilisateur pour que la preference reste propre a chaque compte
+sur un poste partage — meme convention que `gmbs:intervention-form:panel-size:<userId>`.
+
+Quand la prop est fournie, le choix de l'utilisateur fait autorite et les props `pitch`
+et `enable3DBuildings` ne servent plus qu'a definir le mode initial (avant tout choix
+enregistre). Sans elle, aucun bouton n'est affiche et les props pilotent seules le rendu.
+
+Cote rendu, le mode relief ne rajoute pas de couche : le style Liberty embarque deja
+une couche `building-3d` (extrusion, visible par defaut des z14), dont on pilote
+simplement la visibilite. Empiler une seconde couche d'extrusion par-dessus
+provoquerait du z-fighting. Le repli `add3DBuildingsLayer` ne sert qu'aux styles
+depourvus de cette couche.
+
+Le hook sous-jacent est `useMapViewMode` (`src/hooks/useMapViewMode.ts`). Il degrade
+proprement si `localStorage` est indisponible (navigation privee, cookies bloques) :
+le mode reste actif pour la session, simplement non persiste.
 
 ### Exemple basique
 

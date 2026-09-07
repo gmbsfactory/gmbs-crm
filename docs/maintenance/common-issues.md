@@ -20,7 +20,7 @@ NODE_OPTIONS='--max-old-space-size=4096' npm run test
 
 **Symptôme :** `npm run build` échoue avec des variables d'environnement undefined.
 
-**Cause :** Le build Next.js nécessite les variables Supabase et MapTiler.
+**Cause :** Le build Next.js nécessite les variables Supabase. (La cartographie, elle, ne demande aucune cle : OpenFreeMap est sans cle API.)
 
 **Solution :** Vérifier que le fichier `.env.local` contient :
 
@@ -28,7 +28,6 @@ NODE_OPTIONS='--max-old-space-size=4096' npm run test
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-NEXT_PUBLIC_MAPTILER_KEY=...
 ```
 
 En CI, ces valeurs sont fournies via les secrets GitHub.
@@ -119,7 +118,11 @@ Cela exécute `supabase gen types typescript --local > src/lib/database.types.ts
 **Diagnostic :**
 1. Vérifier que la table a bien RLS activé : `SELECT * FROM pg_tables WHERE tablename = 'ma_table'`
 2. Vérifier les policies : `SELECT * FROM pg_policies WHERE tablename = 'ma_table'`
-3. Vérifier le mapping auth : `SELECT * FROM auth_user_mapping WHERE auth_user_id = '<uid>'`
+3. Vérifier la résolution d'identité : `SELECT public.get_public_user_id()`
+   Si elle renvoie `NULL`, l'utilisateur n'est lié ni par `auth_user_mapping`,
+   ni par `users.auth_user_id`, ni par email — **toutes** les policies le
+   refusent alors silencieusement (arrays vides, pas d'erreur explicite).
+   Détail : `SELECT id, email, auth_user_id FROM public.users WHERE email = '<email>'`
 
 **Note :** La plupart des API routes utilisent le client `service_role` qui bypass les RLS. Les policies affectent principalement les appels directs depuis le client Supabase frontend.
 
@@ -166,7 +169,7 @@ Cela exécute `supabase gen types typescript --local > src/lib/database.types.ts
 
 **Causes possibles :**
 1. Cookies de session expirés ou corrompus
-2. Le `auth_user_mapping` n'existe pas pour cet utilisateur
+2. L'utilisateur n'est pas résolvable : ni `auth_user_mapping`, ni `users.auth_user_id`, ni email correspondant (voir `get_public_user_id()`)
 
 **Solution :**
 1. Supprimer les cookies `sb-access-token` et `sb-refresh-token`

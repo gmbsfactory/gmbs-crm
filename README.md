@@ -12,7 +12,7 @@ CRM pour la gestion des interventions, artisans et clients dans le secteur du b�
 | **Backend** | Supabase (PostgreSQL, Auth, Realtime, Storage, Edge Functions) |
 | **State** | TanStack Query v5 (serveur), Zustand (UI), React Context (scope) |
 | **Tests** | Vitest, React Testing Library, Playwright (E2E) |
-| **Cartographie** | MapLibre GL, MapTiler, OpenCage/Nominatim |
+| **Cartographie** | MapLibre GL, OpenFreeMap (tuiles, sans cle), OpenCage/Nominatim |
 
 ## Installation rapide
 
@@ -66,7 +66,6 @@ Copier `.env.example` vers `.env.local` et renseigner :
 | `NEXT_PUBLIC_SUPABASE_URL` | URL de l'instance Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé publique Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clé serveur Supabase (côté serveur uniquement) |
-| `NEXT_PUBLIC_MAPTILER_API_KEY` | Clé MapTiler (cartographie) |
 | `OPENCAGE_API_KEY` | Clé OpenCage (géocodage, optionnel) |
 
 > Ne jamais commiter de secrets. Utiliser `.env.local` pour les valeurs privées.

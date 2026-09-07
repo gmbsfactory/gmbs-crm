@@ -54,7 +54,7 @@ export function useInterventionFormData(options: UseInterventionFormDataOptions)
 
   // ---- Données de référence ----
   const { data: refData, loading: refDataLoading } = useReferenceDataQuery()
-  const { data: currentUserData } = useCurrentUser()
+  const { data: currentUserData, isLoading: currentUserLoading } = useCurrentUser()
 
   const currentUser = useMemo(() => {
     if (!currentUserData) return null
@@ -147,6 +147,7 @@ export function useInterventionFormData(options: UseInterventionFormDataOptions)
     refData,
     refDataLoading,
     currentUser,
+    currentUserLoading,
 
     // Form state
     formData,

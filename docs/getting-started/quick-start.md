@@ -48,9 +48,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...votre-anon-key
 # Supabase - Cle serveur (routes API, middleware)
 SUPABASE_SERVICE_ROLE_KEY=eyJ...votre-service-role-key
 
-# MapTiler - Cartographie (optionnel en dev)
-NEXT_PUBLIC_MAPTILER_API_KEY=votre-cle-maptiler
-
 # URL du site (optionnel en dev, defaut: http://localhost:3000)
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
@@ -67,7 +64,6 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 | Variable | Usage | Defaut |
 |----------|-------|--------|
-| `NEXT_PUBLIC_MAPTILER_API_KEY` | Affichage des cartes MapLibre GL | Pas de carte affichee |
 | `NEXT_PUBLIC_SITE_URL` | URL de base du site | `http://localhost:3000` |
 | `NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL` | URL des Edge Functions (si differente) | Derive de `SUPABASE_URL` |
 

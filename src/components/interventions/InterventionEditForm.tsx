@@ -149,6 +149,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     refData,
     refDataLoading,
     currentUser,
+    currentUserLoading,
 
     // Form state
     formData,
@@ -647,6 +648,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     ? `gmbs:intervention-form:panel-size:${currentUser.id}`
     : null
 
+  // Preference Plan / Relief de la carte, propre a chaque utilisateur.
+  const mapViewModeStorageKey = currentUser?.id
+    ? `gmbs:intervention-form:map-view-mode:${currentUser.id}`
+    : null
+
   return (
     <>
       <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col if-form-container">
@@ -812,8 +818,15 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                       Le contenu absolu ne peut pas faire grandir la cellule → hauteur stable quel que soit le nb d'artisans. */}
                   <div className="relative min-h-0" style={{ gridArea: "4 / 1 / 5 / 5" }}>
                     <div className="absolute inset-0">
+                    {/* Ne monter le groupe (et donc la carte) qu'une fois l'utilisateur resolu :
+                        autoSaveId est lu au montage par react-resizable-panels, donc un id qui change
+                        apres coup imposerait un remount complet -> la carte serait recreee une 2e fois. */}
+                    {currentUserLoading ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-muted-foreground/10 bg-muted text-sm text-muted-foreground">
+                Chargement...
+              </div>
+                    ) : (
                     <ResizablePanelGroup
-                      key={`panel-group-${currentUser?.id ?? "anonymous"}`}
                       direction="horizontal"
                       className="h-full rounded-lg"
                       autoSaveId={panelStorageId}
@@ -830,6 +843,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                               markers={mapMarkers}
                               circleRadiusKm={perimeterKmValue}
                               selectedConnection={mapSelectedConnection ?? undefined}
+                              viewModeStorageKey={mapViewModeStorageKey ?? undefined}
                             />
                           </CardContent>
                         </Card>
@@ -873,6 +887,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         />
                       </ResizablePanel>
                     </ResizablePanelGroup>
+                    )}
                     </div>
                   </div>
 
