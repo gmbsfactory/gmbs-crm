@@ -54,10 +54,17 @@ export function requireUserId(userId: string): void {
  * de la période serait castée à minuit par Postgres et perdrait silencieusement
  * toutes les transitions de ce dernier jour.
  *
+ * Attribution à l'ACTEUR (`changed_by_user_id`), pas au propriétaire du
+ * dossier : le gestionnaire qui fait passer le dossier au statut est celui
+ * qui en récolte la statistique, même si le dossier est assigné à quelqu'un
+ * d'autre (remplacement d'un collègue absent). Cf. règle n°4 de
+ * transitions-scope.ts.
+ *
  * Périmètre « données réelles » (cf. transitions-scope.ts) : uniquement les
- * transitions postérieures au go-live ET portées par un acteur humain — les
- * cascades de l'import des 28-29/06 sont exclues. Le résultat est dédupliqué :
- * une intervention ne compte qu'une fois par statut (premier passage).
+ * transitions postérieures au go-live ET portées par un acteur humain — le
+ * filtre sur l'acteur exclut de fait les cascades sans acteur de l'import des
+ * 28-29/06. Le résultat est dédupliqué : une intervention ne compte qu'une
+ * fois par statut et par acteur (premier passage).
  */
 export async function fetchUserTransitions(params: {
   userId: string;
@@ -74,12 +81,12 @@ export async function fetchUserTransitions(params: {
       intervention_id,
       transition_date,
       to_status_code,
+      changed_by_user_id,
       interventions!inner(assigned_user_id, is_active)
     `)
-    .eq("interventions.assigned_user_id", userId)
+    .eq("changed_by_user_id", userId)
     .eq("interventions.is_active", true)
     .in("to_status_code", TRACKED_STATUS_CODES as unknown as string[])
-    .not("changed_by_user_id", "is", null)
     .gte("transition_date", REAL_DATA_START_ISO)
     .gte("transition_date", startStr)
     .lt("transition_date", endStrExclusive);

@@ -14,6 +14,15 @@
 // 3. Une intervention ne compte qu'UNE fois par statut sur une période :
 //    un dossier qui repasse 4 fois en « Devis envoyé » = 1 devis envoyé
 //    (attribué à son premier passage de la période).
+// 4. ATTRIBUTION À L'ACTEUR (09/09/2026) : une transition compte pour le
+//    gestionnaire qui l'a EFFECTUÉE (`changed_by_user_id`), pas pour celui à
+//    qui le dossier est assigné (`assigned_user_id`). Un gestionnaire qui
+//    traite les dossiers d'un collègue absent doit en récolter les stats.
+//    Conséquence assumée : si deux acteurs passent le même dossier au même
+//    statut sur la période, chacun compte 1 (la dédup de la règle n°3
+//    s'applique par acteur, pas globalement).
+//    NB : les stats de MARGE / CA restent attribuées au propriétaire du
+//    dossier — l'économie du dossier appartient à son gestionnaire.
 
 /** Go-live équipe complète : lundi 29/06/2026 00:00 Paris. */
 export const REAL_DATA_START_ISO = "2026-06-28T22:00:00Z";

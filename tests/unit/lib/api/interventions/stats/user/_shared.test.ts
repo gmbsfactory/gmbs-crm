@@ -70,7 +70,7 @@ describe("fetchUserTransitions", () => {
     expect(bounds).toContain("2026-08-01");
   });
 
-  it("restreint aux interventions actives de l'utilisateur", async () => {
+  it("restreint aux interventions actives", async () => {
     await fetchUserTransitions({
       userId: "user-42",
       startStr: "2026-08-01",
@@ -78,7 +78,19 @@ describe("fetchUserTransitions", () => {
     });
 
     expect(fromMock).toHaveBeenCalledWith("intervention_status_transitions");
-    expect(filter("eq", "interventions.assigned_user_id")[0]?.value).toBe("user-42");
     expect(filter("eq", "interventions.is_active")[0]?.value).toBe(true);
+  });
+
+  it("attribue les transitions a l'acteur, pas au proprietaire du dossier", async () => {
+    await fetchUserTransitions({
+      userId: "user-42",
+      startStr: "2026-08-01",
+      endStrExclusive: "2026-09-01",
+    });
+
+    // Regle n.4 (transitions-scope.ts) : celui qui passe le dossier au statut
+    // recolte la stat, meme si le dossier est assigne a un collegue absent.
+    expect(filter("eq", "changed_by_user_id")[0]?.value).toBe("user-42");
+    expect(filter("eq", "interventions.assigned_user_id")).toHaveLength(0);
   });
 });
