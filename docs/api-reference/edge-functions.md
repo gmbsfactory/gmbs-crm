@@ -454,6 +454,35 @@ Gestion des documents et pieces jointes. Upload vers Supabase Storage, listing p
 
 **Methodes:** GET (liste par entite), POST (upload), DELETE
 
+### GET /documents/documents — liste
+
+| Parametre | Defaut | Effet |
+|-----------|--------|-------|
+| `entity_type` | `intervention` | Table lue : `intervention_attachments` ou `artisan_attachments` |
+| `entity_id` | — | Filtre sur l'entite |
+| `kind` | — | Filtre sur le type de document |
+| `limit` | **aucun** | Optionnel. Absent ou invalide : tous les documents sont renvoyes |
+| `offset` | `0` | Optionnel, pour les appelants qui paginent |
+
+**Tri :** `created_at DESC` — les documents les plus recemment ajoutes en premier.
+
+**Pas de limite par defaut.** Une entite expose tous ses documents. Le seul
+plafond est `MAX_ROWS` (10 000), un garde-fou technique qui neutralise aussi le
+plafond PostgREST par defaut ; il n'a pas vocation a etre atteint.
+
+Les bornes sont calculees par `resolveListRange()`
+(`supabase/functions/_shared/list-range.ts`), teste dans
+`tests/unit/supabase/list-range.test.ts`.
+
+> **Historique.** Jusqu'a septembre 2026, cet endpoint appliquait une limite de
+> 50 lignes **sans `ORDER BY`**. Postgres renvoyait donc les lignes dans l'ordre
+> de l'index, en pratique l'ordre d'insertion. Sur l'intervention 22757 (107
+> pieces jointes dont 96 photos importees en bloc), les factures artisans
+> tombaient au-dela de la 50e ligne et n'atteignaient jamais l'interface : les
+> uploads reussissaient, mais restaient invisibles. Trois utilisateurs ont
+> re-tente l'operation, produisant 9 doublons de la meme facture. Le front
+> n'envoyait aucun `limit` et ignorait le `hasMore` renvoye.
+
 ---
 
 ## cache
@@ -483,6 +512,28 @@ const userId = await getAuthUserId(req, supabase)
 // Obligatoire — throw si non authentifie
 const userId = await requireAuth(req, supabase)
 ```
+
+### List Range Helper
+
+> Source: `supabase/functions/_shared/list-range.ts`
+
+Traduit les parametres `limit` / `offset` d'une requete en bornes `.range(from, to)`.
+
+```typescript
+import { resolveListRange } from '../_shared/list-range.ts';
+
+const { limit, offset, from, to } = resolveListRange(
+  url.searchParams.get('limit'),
+  url.searchParams.get('offset'),
+  MAX_ROWS,
+);
+query = query.order('created_at', { ascending: false }).range(from, to);
+```
+
+Regle : **pas de limite par defaut**. Une limite absente, non numerique, nulle
+ou negative est ignoree et tout est renvoye — une limite invalide ne doit jamais
+masquer silencieusement des lignes. Une limite superieure a `maxRows` est
+ecretee.
 
 ### CORS Handling
 

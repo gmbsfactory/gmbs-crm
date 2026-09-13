@@ -12,6 +12,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { resolveListRange } from '../_shared/list-range.ts';
+
+// Plafond de securite pour la liste des documents.
+// Il n'y a plus de limite « metier » : une entite expose tous ses documents.
+// Ce plafond ne sert qu'a borner la reponse et a neutraliser le defaut
+// PostgREST (1000 lignes) quand aucun `limit` n'est demande.
+const MAX_ROWS = 10000;
 
 // Types de documents supportés
 const SUPPORTED_DOCUMENT_TYPES = {
@@ -221,8 +228,15 @@ serve(async (req: Request) => {
       const entityType = url.searchParams.get('entity_type');
       const entityId = url.searchParams.get('entity_id');
       const kind = url.searchParams.get('kind');
-      const limit = parseInt(url.searchParams.get('limit') || '50');
-      const offset = parseInt(url.searchParams.get('offset') || '0');
+      // Pas de limite par defaut : une entite expose TOUS ses documents.
+      // Une intervention chargee en photos poussait les factures hors de la
+      // fenetre de 50 lignes -> elles devenaient invisibles dans le modal.
+      // `limit`/`offset` restent honores s'ils sont fournis explicitement.
+      const { limit, offset, from, to } = resolveListRange(
+        url.searchParams.get('limit'),
+        url.searchParams.get('offset'),
+        MAX_ROWS,
+      );
 
       let query = supabase
         .from('intervention_attachments')
@@ -278,8 +292,14 @@ serve(async (req: Request) => {
         query = query.eq('kind', kind);
       }
 
-      // Appliquer pagination
-      query = query.range(offset, offset + limit - 1);
+      // Tri par date d'ajout (plus recent en premier) : sans ORDER BY explicite,
+      // Postgres renvoyait les lignes dans l'ordre de l'index, donc en pratique
+      // l'ordre d'insertion physique.
+      query = query.order('created_at', { ascending: false });
+
+      // `range` est toujours applique : sans lui, PostgREST retombe sur son
+      // propre plafond. Sans `limit` demande, la borne haute est MAX_ROWS.
+      query = query.range(from, to);
 
       const { data, error } = await query;
 
@@ -326,7 +346,7 @@ serve(async (req: Request) => {
             limit,
             offset,
             total: transformedData?.length || 0,
-            hasMore: (transformedData?.length || 0) === limit
+            hasMore: limit !== null && (transformedData?.length || 0) === limit
           }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

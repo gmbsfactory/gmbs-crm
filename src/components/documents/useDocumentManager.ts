@@ -429,6 +429,10 @@ export function useDocumentManager({
       setCompletedInQueue(0);
       setIsQueueUploading(true);
 
+      // Les erreurs sont rattrapees fichier par fichier : on compte les reussites
+      // reelles pour ne pas annoncer un succes qui n'a pas eu lieu.
+      let uploaded = 0;
+
       try {
         for (const file of fileArray) {
           try {
@@ -439,6 +443,7 @@ export function useDocumentManager({
               normalizedKind,
               uploaderInfo,
             );
+            uploaded += 1;
             setCompletedInQueue((count) => count + 1);
           } catch (error) {
             console.error('Erreur lors de l\'upload:', error);
@@ -447,7 +452,15 @@ export function useDocumentManager({
         }
         await fetchDocuments();
         onChange?.();
-        toast.success(`${fileArray.length} document(s) importé(s) avec succès`);
+        if (uploaded === fileArray.length) {
+          toast.success(`${uploaded} document(s) importé(s) avec succès`);
+        } else if (uploaded > 0) {
+          toast.warning(
+            `${uploaded} document(s) importé(s) sur ${fileArray.length} — ${fileArray.length - uploaded} en échec`,
+          );
+        } else {
+          toast.error("Aucun document n'a pu être importé");
+        }
       } catch (error) {
         console.error('Erreur lors du traitement de la file d\'upload:', error);
         toast.error('Erreur lors de l\'import des documents');
