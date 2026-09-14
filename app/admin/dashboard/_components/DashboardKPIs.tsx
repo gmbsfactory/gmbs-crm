@@ -68,14 +68,14 @@ export function DashboardKPIs({
           date: s.date,
           value: s.countDemandees,
         }))}
-        description={`${formatNumber(dashboardStats?.mainStats.nbInterventionsTerminees || 0)} terminées`}
+        description={`${formatNumber(dashboardStats?.mainStats.nbInterventionsTerminees || 0)} clôturées sur la période`}
         onClick={onOpenInterventionsModal}
       />
       <KPICard
-        title="Taux Transformation"
+        title="Taux Clôture / Demandes"
         value={`${(dashboardStats?.mainStats.tauxTransformation || 0).toFixed(1)}%`}
         icon={Percent}
-        description="Demandées / Terminées"
+        description="Clôturées (période) / Demandées (période)"
         className="border-l-purple-500"
         onClick={onOpenTransformationModal}
       />

@@ -1029,6 +1029,22 @@ Retrieves comprehensive admin dashboard statistics via the `get_admin_dashboard_
 
 **Return:** `Promise<AdminDashboardStats>`
 
+**Scope (depuis 2026-09-09, migration `99090_dashboard_stats_on_closure_date.sql`)** — le dashboard admin repose sur **deux axes de temps** :
+
+| Axe | Indicateurs | Prédicat de période |
+|-----|-------------|---------------------|
+| **Clôture** | `chiffreAffaires`, `couts`, `marge`, `tauxMarge`, `nbInterventionsTerminees`, `ca_jour` / `marge_jour` des sparklines, colonnes CA/marge/terminées des tables gestionnaires / agences / métiers | `v_intervention_closure.closed_at` dans la période |
+| **Création** | `nbInterventionsDemandees`, `conversionFunnel`, `statusBreakdown`, `volumeByStatus`, `countDemandees` des sparklines, `nbInterventionsPrises` / `pourcentage_volume` | `interventions.date` dans la période |
+
+Règles de la date de clôture (vue `public.v_intervention_closure`, non exposée — lue uniquement par les RPC `SECURITY DEFINER`) :
+
+- Date retenue = **dernière** transition vers `INTER_TERMINEE` (`MAX(transition_date)`), pour qu'un dossier rouvert puis re-clôturé ne soit jamais compté deux fois.
+- **« Clôturé » = a atteint `INTER_TERMINEE`**, quel que soit le statut courant. Le workflow autorise `INTER_TERMINEE -> SAV` et `INTER_TERMINEE -> INTER_EN_COURS` : avant cette migration, un dossier rouvert ou passé en SAV perdait tout son CA. Le CA reste désormais acquis.
+- Périmètre **« données réelles »** : une transition ne vaut clôture que si elle est postérieure au go-live (29/06/2026 00:00 Paris) **et** portée par un acteur humain (`changed_by_user_id` non nul). Critère **strictement identique** à celui de `get_podium_ranking_by_period` (migration `99063`) — sinon le podium et les cartes du dashboard afficheraient deux marges différentes. Un dossier sans clôture éligible (ex. clôturé uniquement par la cascade d'import des 28-29/06/2026) n'entre dans aucun CA.
+- Borne de fin **exclusive au jour suivant** sur l'axe clôture (la couche TS envoie `T23:59:59`, qui perdait les dernières fractions de seconde).
+
+**Conséquence assumée** : `tauxTransformation` = terminées(clôture) / demandées(création) croise deux cohortes et **peut dépasser 100 %** sur une période où l'on clôture plus de dossiers qu'on n'en ouvre. Le KPI est libellé « Taux Clôture / Demandes » dans l'UI pour éviter la lecture « part des demandes de la période qui ont abouti ».
+
 ---
 
 ### getRevenueHistory(params)

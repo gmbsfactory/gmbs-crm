@@ -23,6 +23,14 @@
 //    s'applique par acteur, pas globalement).
 //    NB : les stats de MARGE / CA restent attribuées au propriétaire du
 //    dossier — l'économie du dossier appartient à son gestionnaire.
+// 5. DASHBOARD ADMIN SUR LA DATE DE CLÔTURE (09/09/2026) : le CA, les coûts et
+//    la marge du dashboard admin sont comptés dans la période où le dossier est
+//    passé en INTER_TERMINEE, pas dans celle où il a été créé. La date de
+//    clôture canonique vit côté SQL dans la vue `public.v_intervention_closure`
+//    (migration `99090_dashboard_stats_on_closure_date.sql`) et applique les
+//    mêmes règles n°1 et n°2 que ci-dessus. Le littéral `2026-06-28T22:00:00Z`
+//    y est dupliqué : si REAL_DATA_START_ISO change, la vue ET la migration
+//    99063 (podium) doivent être mises à jour en même temps.
 
 /** Go-live équipe complète : lundi 29/06/2026 00:00 Paris. */
 export const REAL_DATA_START_ISO = "2026-06-28T22:00:00Z";

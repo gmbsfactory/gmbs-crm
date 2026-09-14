@@ -448,7 +448,14 @@ Le `UserStatusContext` detecte l'inactivite cote client :
 
 ## Row Level Security (RLS)
 
-Les RLS policies PostgreSQL protegent les donnees au niveau de la base :
+Les RLS policies PostgreSQL protegent les donnees au niveau de la base.
+
+Depuis les migrations `99088` / `99089` / `99091`, **toutes** les tables du
+schema `public` ont la RLS activee, et les vues sont en `security_invoker`. Le
+schema `public` etant expose via PostgREST avec la cle `anon` — publique par
+construction, embarquee dans le bundle JS — une table sans RLS y est lisible et
+modifiable par n'importe qui. Toute nouvelle table doit donc naitre avec
+`ENABLE ROW LEVEL SECURITY` et ses policies dans la meme migration.
 
 ### Mapping auth -> public
 
@@ -459,7 +466,7 @@ besoin de passer de l'un a l'autre doit utiliser la fonction
 une colonne referencant `public.users(id)`.
 
 Trois mecanismes de liaison coexistent pour raisons historiques, aucun ne
-couvrant a lui seul l'ensemble des comptes. Depuis la migration `99076`,
+couvrant a lui seul l'ensemble des comptes. Depuis la migration `99088`,
 `get_public_user_id()` les essaie dans cet ordre :
 
 | Ordre | Source | Introduit par |

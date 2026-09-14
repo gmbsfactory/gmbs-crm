@@ -1,4 +1,4 @@
--- 99076 — Documents : tri par date d'ajout sans coût
+-- 99087 — Documents : tri par date d'ajout sans cout
 --
 -- Contexte : l'Edge Function `documents` renvoyait la liste sans ORDER BY et
 -- plafonnée à 50 lignes. Sur l'intervention 22757 (107 pièces jointes, dont 96

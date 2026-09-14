@@ -10,8 +10,14 @@ Supabase utilise les **Row Level Security (RLS)** de PostgreSQL pour contrôler 
 - `supabase/migrations/00012_rls_policies.sql` : tables billing et chat
 - `supabase/migrations/00041_rls_core_tables.sql` : tables coeur (users, artisans, interventions)
 - `supabase/migrations/00042_user_permissions.sql` : table user_permissions
-- `supabase/migrations/99076_rls_unify_identity_and_restore_user_tables.sql` : resolution d'identite unifiee + user_preferences, intervention_reminders, email_logs
-- `supabase/migrations/99077_rls_lock_remaining_public_tables.sql` : tables restantes du schema public (zones, artisan_metiers, agency_config, tables sans acces applicatif, archives)
+- `supabase/migrations/99088_rls_unify_identity_and_restore_user_tables.sql` : resolution d'identite unifiee + user_preferences, intervention_reminders, email_logs
+- `supabase/migrations/99089_rls_lock_remaining_public_tables.sql` : tables restantes du schema public (zones, artisan_metiers, agency_config, tables sans acces applicatif, archives)
+- `supabase/migrations/99091_rls_lock_core_tables_and_views.sql` : tables coeur (tenants, owner, intervention_artisans/costs/payments/status_transitions), messagerie non branchee, et `security_invoker` sur les vues
+
+Ces trois dernieres migrations forment les **trois vagues** qui ont ferme la
+totalite du schema `public` : apres `99091`, plus aucune table publique n'est
+sans RLS, et le Security Advisor ne remonte plus ni `rls_disabled_in_public`,
+ni `policy_exists_rls_disabled`, ni `security_definer_view`.
 
 **Note importante :** La plupart des API routes utilisent le client Supabase en mode `service_role` (via `getSupabaseClientForNode()`), ce qui **bypass les RLS**. Les policies protègent principalement :
 1. L'accès direct depuis le client frontend (Supabase JS)
@@ -37,7 +43,7 @@ elle, jamais comparer `auth.uid()` directement a une colonne referencant
 > renvoie aucune ligne et bloque l'utilisateur. C'est ce qui avait casse
 > `user_preferences` et `email_logs`.
 
-Depuis `99076`, la fonction essaie **trois** chemins de resolution dans l'ordre,
+Depuis `99088`, la fonction essaie **trois** chemins de resolution dans l'ordre,
 car trois mecanismes de liaison coexistent historiquement et aucun ne couvre
 l'ensemble des comptes a lui seul :
 
@@ -68,7 +74,7 @@ $$;
 ### get_current_user_id()
 
 Alias historique introduit par `00031`, qui resolvait uniquement via
-`users.auth_user_id`. Depuis `99076` il **delegue** a `get_public_user_id()`,
+`users.auth_user_id`. Depuis `99088` il **delegue** a `get_public_user_id()`,
 afin qu'il n'existe plus qu'une seule logique de resolution. Conserve pour les
 policies existantes qui l'appellent ; ne pas utiliser dans du nouveau code.
 
@@ -197,7 +203,7 @@ d'une intervention (`src/hooks/useEmailLogs.ts`) affiche les emails de toute
 l'équipe, pas seulement les siens. Restreindre par `sent_by` masquerait les
 envois des collègues. La protection utile est l'exclusion du rôle `anon`.
 
-### Tables de jonction et configuration (99077)
+### Tables de jonction et configuration (99089)
 
 Tables atteintes depuis le navigateur : CRUD complet pour `authenticated`,
 aucun accès pour `anon`.
@@ -208,7 +214,7 @@ aucun accès pour `anon`.
 | `artisan_metiers` | `artisan_metiers_*_authenticated` | Jonction lue en embed par `artisans-crud.ts` et `searchApi.ts` ; même jeu que sa sœur `artisan_zones` |
 | `agency_config` | `agency_config_select/insert/update_authenticated`, `agency_config_delete_admin` | `agenciesApi.updateRequiresReference()` fait un **upsert** : INSERT et UPDATE sont tous deux requis, sinon l'upsert échoue |
 
-### Tables sans accès applicatif (99077)
+### Tables sans accès applicatif (99089)
 
 `tasks`, `task_statuses`, `sync_logs`, `podium_periods`, ainsi que les archives
 `_pr2_archive_*` et `user_page_sessions_cleanup_backup`.
@@ -238,6 +244,79 @@ horodatages.
 À l'inverse `podium_periods` n'a rien demandé : `get_current_podium_period()`,
 malgré son nom, est un calcul pur sur `now()` et ne lit pas la table. Vérifier
 le corps d'une fonction plutôt que se fier à son nom.
+
+### Tables coeur (99091)
+
+Les plus exposees du schema : la majorite est atteinte directement par le
+navigateur, et quatre sont lues en **embed PostgREST** depuis la requete
+principale des interventions (`_select-clauses.ts`) — une policy SELECT
+manquante y ferait disparaitre des donnees en silence, sans erreur.
+
+| Table | Policies | Pourquoi ce perimetre |
+|-------|----------|------------------------|
+| `tenants` | `tenants_*_authenticated` (CRUD) | 16 requetes dans `tenantsApi.ts`, embed `tenants ( ... )`, ecrite par l'import CSV |
+| `owner` | `owner_*_authenticated` (CRUD) | 14 requetes dans `ownersApi.ts`, embed `owner ( ... )`, ecrite par l'import CSV |
+| `intervention_artisans` | `intervention_artisans_*_authenticated` (CRUD) | Triple usage : embed, CRUD direct (`interventions-status.ts`), **et souscription Realtime** (`realtime-client.ts:159`) |
+| `intervention_costs` | `intervention_costs_*_authenticated` (CRUD) | Embed + CRUD complet depuis `interventions-costs.ts` |
+| `intervention_payments` | `intervention_payments_*_authenticated` (CRUD) | DELETE inclus : la suppression de paiement est une fonctionnalite livree |
+| `intervention_status_transitions` | `*_select_authenticated`, `*_update_authenticated` **seulement** | Voir ci-dessous |
+| `intervention_costs_cache` | aucune (deny-all) | Lue et alimentee uniquement via des fonctions `SECURITY DEFINER` (`00016`, `99022`) |
+| `conversations`, `messages`, `message_attachments` | aucune (deny-all) | Messagerie jamais branchee cote application |
+
+**`intervention_status_transitions` — regime A partiel, volontairement.**
+`SELECT` est ouvert (lecture massive cote client), `INSERT` et `DELETE` n'ont
+**aucune policy** : les lignes sont ecrites exclusivement par du
+`SECURITY DEFINER` — les triggers de `99031`/`99054` et les RPC
+`log_status_transition_from_api()` / `create_automatic_status_transitions_on_creation()`
+— qui franchissent la RLS en tant qu'owner. Aucune transition ne peut donc etre
+fabriquee ni effacee depuis le navigateur.
+
+**Le complement indispensable : le GRANT par colonne.** La RLS raisonne par
+ligne, jamais par colonne. Une policy `UPDATE ... WITH CHECK (true)` aurait
+laisse reecrire `to_status_code` sur une ligne existante — soit la
+falsification du journal par un autre chemin que l'`INSERT` qu'on venait de
+fermer. Les deux mecanismes se combinent (l'operation doit etre autorisee par
+la RLS **et** par le GRANT), d'ou :
+
+```sql
+REVOKE UPDATE ON public.intervention_status_transitions FROM authenticated;
+GRANT  UPDATE (transition_date) ON public.intervention_status_transitions TO authenticated;
+```
+
+C'est le pattern a reproduire pour tout journal alimente par trigger dont le
+client doit corriger un champ isole.
+
+### Vues : `security_invoker`
+
+Le lint `security_definer_view` est trompeur — PostgreSQL n'a **pas** de vue
+`SECURITY DEFINER`. Il signale l'absence de `security_invoker = true` (option
+PG 15). Par defaut, une vue est evaluee avec les droits de son createur
+(`postgres`), qui contourne la RLS des tables sous-jacentes : la vue devient
+une porte derobee autour des policies.
+
+```sql
+ALTER VIEW public.interventions_ca SET (security_invoker = true);
+```
+
+| Vue | Effet | Regression ? |
+|-----|-------|--------------|
+| `interventions_ca` (`00016`) | Lit `intervention_costs_cache` sous la RLS de l'appelant | Non : ses seuls lecteurs sont `get_admin_dashboard_stats()` et `get_podium_ranking_by_period()` (`00011`), toutes deux `SECURITY DEFINER` — l'utilisateur effectif y est l'owner |
+| `v_user_permissions_debug` (`00045`) | **Supprimee** (`DROP VIEW`) | Non : inutilisee par l'application (les occurrences dans `database.types.ts` sont des artefacts de cles etrangeres, pas des lectures) |
+
+**Pourquoi un `DROP` plutot qu'un `security_invoker` sur la seconde.** Cette
+vue de diagnostic aplatissait `users → user_roles → roles → role_permissions →
+permissions`, avec un `GRANT SELECT TO authenticated` : n'importe quel viewer
+pouvait lire l'email et le jeu de permissions de tous ses collegues, admins
+compris. `security_invoker` aurait eteint l'alerte en laissant l'objet en
+place ; la suppression fait disparaitre la surface d'exposition elle-meme, et
+ne detruit aucune donnee — une vue n'est qu'une requete enregistree. La requete
+equivalente est conservee en commentaire dans `99091`, a rejouer dans le SQL
+Editor (en `service_role`, sans `GRANT`) pour un diagnostic ponctuel.
+
+L'ordre compte : une vue en `security_invoker` sur une table en deny-all renvoie
+zero ligne, sans erreur. Toujours verifier qui lit la vue **avant** de basculer
+l'option — et si un lecteur est une fonction `SECURITY DEFINER`, la RLS reste
+contournee a l'interieur de celle-ci.
 
 ### Tables billing et chat
 
@@ -375,9 +454,16 @@ CREATE POLICY ma_table_delete_admin ON public.ma_table
   un `UPDATE` refusé **ne lève rien** — il touche simplement 0 ligne. Une table
   de flags ou de cache mise à jour par trigger se fige donc en silence, et le
   symptôme apparaît ailleurs, longtemps après (cf. `search_views_refresh_flags`
-  dans `99077`).
+  dans `99089`).
 - **Vérifier les embeds PostgREST.** Un `select('*, sender:users(...)')` exige
   une policy SELECT sur la table jointe, sinon l'embed renvoie `null` en
   silence.
 - **Realtime applique la RLS.** Restreindre une policy SELECT restreint aussi
-  les évènements reçus par les abonnements.
+  les évènements reçus par les abonnements. Une table souscrite en
+  `postgres_changes` sans policy SELECT cesse purement et simplement d'émettre,
+  sans erreur : le cache TanStack Query décroche en silence. Vérifier
+  `src/lib/realtime/realtime-client.ts` avant de verrouiller une table.
+- **Une vue n'est pas protégée par la RLS de ses tables** tant qu'elle n'est pas
+  en `security_invoker = true` : elle s'exécute avec les droits de son
+  créateur et contourne les policies. Poser l'option sur toute nouvelle vue
+  (cf. `99091`).

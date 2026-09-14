@@ -4,7 +4,7 @@ import path from 'node:path'
 
 /**
  * Garde-fou contre la reintroduction de l'anti-pattern RLS corrige par
- * la migration 99076.
+ * la migration 99088.
  *
  * Dans ce projet `auth.users.id` != `public.users.id` pour la majorite des
  * comptes. Une policy qui compare `auth.uid()` a une colonne referencant
@@ -14,18 +14,24 @@ import path from 'node:path'
  * main en production (alerte `rls_disabled_in_public` du Security Advisor).
  *
  * On ne verifie pas l'historique - les migrations fautives font partie du
- * passe et sont corrigees par 99076. On verifie que les migrations
+ * passe et sont corrigees par 99088. On verifie que les migrations
  * *posterieures* ne le reintroduisent pas.
  *
  * Voir docs/database/rls-policies.md > Points de vigilance.
  */
 
 const MIGRATIONS_DIR = path.join(process.cwd(), 'supabase', 'migrations')
-const FIX_MIGRATION = '99076_rls_unify_identity_and_restore_user_tables.sql'
-const LOCK_MIGRATION = '99077_rls_lock_remaining_public_tables.sql'
+const FIX_MIGRATION = '99088_rls_unify_identity_and_restore_user_tables.sql'
+const LOCK_MIGRATION = '99089_rls_lock_remaining_public_tables.sql'
 
-/** Toute migration dont le prefixe numerique est >= celui du correctif. */
-const FIX_PREFIX = 99076
+/**
+ * Plancher de scan : toute migration dont le prefixe numerique est >= cette
+ * valeur est verifiee. Volontairement en-dessous du prefixe du correctif
+ * (99088) : la vague RLS a ete renumerotee 99088-99091 pour passer au-dessus
+ * de 99087, deja appliquee en prod. Abaisser le plancher garde 99087 - et
+ * toute migration ecrite entre-temps - dans le perimetre du garde-fou.
+ */
+const SCAN_FLOOR = 99076
 
 function migrationPrefix(filename: string): number {
   const match = /^(\d+)/.exec(filename)
@@ -60,7 +66,7 @@ const FORBIDDEN_COMPARISONS = [
 ]
 
 describe('RLS policies - resolution d\'identite', () => {
-  it('la migration corrective 99076 est presente', () => {
+  it('la migration corrective 99088 est presente', () => {
     expect(listMigrations()).toContain(FIX_MIGRATION)
   })
 
@@ -88,7 +94,7 @@ describe('RLS policies - resolution d\'identite', () => {
     const offenders: string[] = []
 
     for (const file of listMigrations()) {
-      if (migrationPrefix(file) < FIX_PREFIX) continue
+      if (migrationPrefix(file) < SCAN_FLOOR) continue
 
       const sql = stripSqlComments(readMigration(file))
       for (const pattern of FORBIDDEN_COMPARISONS) {
@@ -105,7 +111,7 @@ describe('RLS policies - resolution d\'identite', () => {
     ).toEqual([])
   })
 
-  it('99077 verrouille les tables publiques restantes', () => {
+  it('99089 verrouille les tables publiques restantes', () => {
     const sql = readMigration(LOCK_MIGRATION)
 
     const tables = [
@@ -133,7 +139,7 @@ describe('RLS policies - resolution d\'identite', () => {
     }
   })
 
-  it('99077 corrige le contexte d\'execution des fonctions traversant la RLS', () => {
+  it('99089 corrige le contexte d\'execution des fonctions traversant la RLS', () => {
     const sql = readMigration(LOCK_MIGRATION)
 
     // Triggers ecrivant dans search_views_refresh_flags : sans SECURITY DEFINER,
@@ -163,7 +169,7 @@ describe('RLS policies - resolution d\'identite', () => {
     const offenders: string[] = []
 
     for (const file of listMigrations()) {
-      if (migrationPrefix(file) < FIX_PREFIX) continue
+      if (migrationPrefix(file) < SCAN_FLOOR) continue
 
       const sql = stripSqlComments(readMigration(file))
       // Une policy sans clause de role s'applique aussi a `anon`,

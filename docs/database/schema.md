@@ -330,6 +330,14 @@ Objectifs par gestionnaire (migration 00009).
 
 ---
 
+## Vues non matérialisées notables
+
+| Vue | Description |
+|-----|-------------|
+| `v_intervention_closure` | Date de clôture canonique d'une intervention : dernière transition vers `INTER_TERMINEE` dans le périmètre « données réelles » (≥ go-live 29/06/2026 **et** acteur humain). Alimente l'axe clôture du dashboard admin — CA, coûts, marge (migration `99090`). **Non exposée** : droits révoqués pour `anon` / `authenticated`, lue uniquement par les RPC `SECURITY DEFINER` du dashboard. Même périmètre que `get_podium_ranking_by_period` (migration `99063`). Requêtes de contrôle : [`verify-dashboard-closure-axis.sql`](verify-dashboard-closure-axis.sql). |
+
+---
+
 ## Triggers
 
 | Trigger | Table | Description |
