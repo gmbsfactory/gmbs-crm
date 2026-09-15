@@ -94,32 +94,40 @@ export function convertViewFiltersToServerFilters(
           }
         }
       } else if (filter.operator === "in" && Array.isArray(filter.value)) {
-        // Convertir le tableau en string[] pour userCodeToId
+        // `null` dans la liste = « Non assigné », combinable avec des noms.
+        const includesUnassigned = filter.value.some((v) => v === null)
         // Filtrer le placeholder __NO_USER_USERNAME__ qui ne peut pas être converti
         const stringValues = filter.value
           .filter((v): v is string => typeof v === "string" && v !== "__NO_USER_USERNAME__")
-        if (stringValues.length > 0) {
-          const userIds = stringValues
-            .map((v) => {
-              if (
-                v === "CURRENT_USER" ||
-                v === "__CURRENT_USER__" ||
-                v === "__CURRENT_USER_USERNAME__" ||
-                v === context.currentUserId
-              ) {
-                return context.currentUserId
-              }
-              return context.userCodeToId(v)
-            })
-            .filter((id): id is string => Boolean(id))
-          if (userIds.length > 0) {
-            // Prendre le premier ID si plusieurs, ou null si aucun
-            serverFilters.user = userIds[0] || null
-          } else {
-            clientFilters.push(filter)
-          }
+        const userIds = stringValues
+          .map((v) => {
+            if (
+              v === "CURRENT_USER" ||
+              v === "__CURRENT_USER__" ||
+              v === "__CURRENT_USER_USERNAME__" ||
+              v === context.currentUserId
+            ) {
+              return context.currentUserId
+            }
+            return context.userCodeToId(v)
+          })
+          .filter((id): id is string => Boolean(id))
+
+        if (userIds.length > 0) {
+          // Multi-sélection : on conserve tous les IDs (miroir de `statuts`,
+          // `agences`, `metiers`). L'Edge Function lit `user` répété, et `null`
+          // y voisine les IDs pour « Non assigné + gestionnaires nommés ».
+          const selection: Array<string | null> = Array.from(new Set(userIds))
+          if (includesUnassigned) selection.push(null)
+          serverFilters.users = selection
+        } else if (includesUnassigned) {
+          // Uniquement « Non assigné » : même sémantique que la vue Market.
+          serverFilters.user = null
+        } else if (stringValues.length > 0) {
+          // Des codes étaient présents mais aucun n'a pu être résolu.
+          clientFilters.push(filter)
         } else {
-          // Si tous les valeurs étaient __NO_USER_USERNAME__, ne pas appliquer le filtre
+          // Uniquement __NO_USER_USERNAME__ : ne pas appliquer le filtre.
           continue
         }
       } else {

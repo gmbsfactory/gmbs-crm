@@ -9,6 +9,7 @@ import {
   getReferenceCache,
   resolveMetierToId,
 } from "@/lib/api/common/utils";
+import { applyUserFilter } from "@/lib/api/interventions/_user-filter";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
 import type { InterventionStatusKey } from "@/config/interventions";
 
@@ -46,13 +47,7 @@ export const interventionsFilters = {
         const refs = await getReferenceCache();
         query = query.in("metier_id", params.metiers.map((c) => resolveMetierToId(c, refs.metiersById)));
       }
-      if (params?.user !== undefined) {
-        if (params.user === null) {
-          query = query.is("assigned_user_id", null);
-        } else {
-          query = query.eq("assigned_user_id", params.user);
-        }
-      }
+      query = applyUserFilter(query, params);
       if (params?.startDate) {
         query = query.gte("date", params.startDate);
       }
@@ -129,13 +124,7 @@ export const interventionsFilters = {
       const refs = await getReferenceCache();
       query = query.in("metier_id", params.metiers.map((c) => resolveMetierToId(c, refs.metiersById)));
     }
-    if (params?.user !== undefined) {
-      if (params.user === null) {
-        query = query.is("assigned_user_id", null);
-      } else {
-        query = query.eq("assigned_user_id", params.user);
-      }
-    }
+    query = applyUserFilter(query, params);
     if (params?.startDate) {
       query = query.gte("date", params.startDate);
     }
@@ -307,13 +296,7 @@ export const interventionsFilters = {
     if (params?.metier && typeof params.metier === 'string') {
       query = query.eq("metier_id", resolveMetierToId(params.metier, refs.metiersById));
     }
-    if (params?.user !== undefined) {
-      if (params.user === null) {
-        query = query.is("assigned_user_id", null);
-      } else {
-        query = query.eq("assigned_user_id", params.user);
-      }
-    }
+    query = applyUserFilter(query, params);
     if (params?.startDate) {
       query = query.gte("date", params.startDate);
     }

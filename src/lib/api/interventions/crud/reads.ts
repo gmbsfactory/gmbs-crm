@@ -19,6 +19,7 @@ import {
 import type { InterventionWithStatus } from "@/types/intervention";
 import { supabaseClient } from "./_auth";
 import { buildBaseSearchParams, type FilterValue } from "./_search-params";
+import { applyUserFilter } from "@/lib/api/interventions/_user-filter";
 import { FULL_INTERVENTION_SELECT } from "./_select-clauses";
 
 export async function getAll(
@@ -213,7 +214,7 @@ export async function getByArtisan(
 
   if (params?.statut) query = query.eq("statut_id", params.statut);
   if (params?.agence) query = query.eq("agence_id", params.agence);
-  if (params?.user) query = query.eq("assigned_user_id", params.user);
+  query = applyUserFilter(query, params);
   if (params?.startDate) query = query.gte("date", params.startDate);
   if (params?.endDate) query = query.lte("date", params.endDate);
 

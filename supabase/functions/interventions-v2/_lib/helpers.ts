@@ -313,6 +313,33 @@ export const buildSearchOrFilters = (searchTerm: string): string => {
 
 // ---------- Application des filtres ----------
 
+/**
+ * Applique le filtre « gestionnaire assigné ».
+ *
+ * Les trois modes sont exclusifs deux à deux SAUF le dernier : la multi-sélection
+ * de la table interventions autorise « Non assigné » **avec** des gestionnaires
+ * nommés. PostgREST ne sait pas exprimer ça avec `.in()` (`in.(null,uuid)` traite
+ * `null` littéralement et ne matche pas un vrai NULL SQL), d'où le `.or()`.
+ * Les `.or()` multiples d'une même requête sont combinés en AND par PostgREST :
+ * cohabiter avec le curseur ou la recherche ne pose donc pas de problème.
+ */
+export const applyUserFilter = <T extends { in: Function; is: Function; or: Function }>(
+  builder: T,
+  filters: Pick<FilterParams, 'user' | 'userIsNull'>,
+): T => {
+  const userIds = filters.user ?? [];
+  if (userIds.length > 0 && filters.userIsNull) {
+    return builder.or(`assigned_user_id.is.null,assigned_user_id.in.(${userIds.join(',')})`);
+  }
+  if (userIds.length > 0) {
+    return builder.in('assigned_user_id', userIds);
+  }
+  if (filters.userIsNull) {
+    return builder.is('assigned_user_id', null);
+  }
+  return builder;
+};
+
 export const applyFilters = <T extends { in: Function; eq: Function; gte: Function; lte: Function; ilike: Function; is: Function; or: Function }>(
   query: T,
   filters: FilterParams,
@@ -328,11 +355,7 @@ export const applyFilters = <T extends { in: Function; eq: Function; gte: Functi
   if (filters.metier && filters.metier.length > 0) {
     builder = builder.in('metier_id', filters.metier);
   }
-  if (filters.user && filters.user.length > 0) {
-    builder = builder.in('assigned_user_id', filters.user);
-  } else if (filters.userIsNull) {
-    builder = builder.is('assigned_user_id', null);
-  }
+  builder = applyUserFilter(builder, filters);
   if (filters.startDate) {
     builder = builder.gte('date', filters.startDate);
   }

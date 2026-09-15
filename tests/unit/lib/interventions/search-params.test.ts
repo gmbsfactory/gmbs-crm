@@ -75,5 +75,29 @@ describe("buildBaseSearchParams", () => {
       expect(params.get("statut")).toBe("statut-1")
       expect(params.get("limit")).toBe("50")
     })
+
+    it("should repeat the `user` param for a multi-gestionnaire selection", () => {
+      const params = buildBaseSearchParams({ users: ["u-1", "u-2", "u-3"] })
+
+      expect(params.getAll("user")).toEqual(["u-1", "u-2", "u-3"])
+    })
+
+    it("should send `null` alongside the ids for \"Non assigné\" + gestionnaires", () => {
+      const params = buildBaseSearchParams({ users: ["u-1", null] })
+
+      expect(params.getAll("user")).toEqual(["u-1", "null"])
+    })
+
+    it("should keep the singular `user` when no multi-selection is set", () => {
+      const params = buildBaseSearchParams({ user: "u-1" })
+
+      expect(params.getAll("user")).toEqual(["u-1"])
+    })
+
+    it("should still send `user=null` for the unassigned filter", () => {
+      const params = buildBaseSearchParams({ user: null })
+
+      expect(params.getAll("user")).toEqual(["null"])
+    })
   })
 })

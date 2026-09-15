@@ -39,6 +39,11 @@ const makeValueKey = (value: unknown): string => {
 
 const deriveSelectedKeys = (filter?: ViewFilter): Set<string> => {
   if (!filter) return new Set()
+  // Les vues type Market stockent « non assigné » en `is_empty` : on le présente
+  // comme l'option « Non assigné » cochée pour que la case reflète le filtre actif.
+  if (filter.operator === "is_empty") {
+    return new Set([makeValueKey(null)])
+  }
   if (filter.operator === "eq" && filter.value !== undefined) {
     return new Set([makeValueKey(filter.value)])
   }
@@ -180,19 +185,21 @@ export function UserColumnFilter({
       const option = allOptions.find((opt) => opt.key === key)
       if (!option) return
 
+      // `null` est une valeur sélectionnable à part entière (« Non assigné ») et
+      // se combine avec des gestionnaires nommés — on ne l'écarte donc pas ici.
       const values = Array.from(nextKeys)
-        .map((k) => {
-          const opt = allOptions.find((o) => o.key === k)
-          return opt?.value
-        })
-        .filter((v): v is string | number | boolean => v !== undefined && v !== null)
+        .map((k) => allOptions.find((o) => o.key === k)?.value)
+        .filter((v): v is string | number | boolean | null => v !== undefined)
 
       if (values.length === 0) {
         onFilterChange(property, null)
         return
       }
 
-      if (values.length === 1) {
+      // Un seul gestionnaire nommé → `eq` (chemin serveur mono-sélection).
+      // Tout le reste passe par `in`, y compris `[null]` seul : c'est le
+      // convertisseur de filtres qui porte la sémantique « non assigné ».
+      if (values.length === 1 && values[0] !== null) {
         onFilterChange(property, { property, operator: "eq", value: values[0] })
         return
       }

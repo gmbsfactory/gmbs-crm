@@ -36,6 +36,12 @@ Edge Function principale pour le CRUD complet des interventions. Gere les requet
 **Fonctionnalites:**
 - Pagination serveur avec prefetch
 - Filtres multiples (statut, agence, gestionnaire, metier, date, recherche texte)
+- Filtre gestionnaire : le parametre `user` est repetable. Les valeurs sont des
+  UUID, plus le marqueur litteral `null` pour « non assigne ». Les deux se
+  combinent (`?user=<uuid>&user=null`) et sont alors appliques en
+  `assigned_user_id IS NULL OR assigned_user_id IN (...)` — voir `applyUserFilter`
+  dans `_lib/helpers.ts`, dont `src/lib/api/interventions/_user-filter.ts` est le
+  pendant client (les deux doivent rester alignes).
 - Include optionnel : `artisans`, `costs`, `payments`, `owner`, `tenant`
 - Mode `light` pour warm-up (champs reduits)
 - Upsert pour les imports Google Sheets

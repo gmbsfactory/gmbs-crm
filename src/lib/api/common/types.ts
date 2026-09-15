@@ -221,6 +221,11 @@ export interface InterventionQueryParams extends BaseQueryParams {
   metier?: string;
   metiers?: string[];
   user?: string | null;
+  /**
+   * Multi-sélection gestionnaires, envoyée en `user` répété à l'Edge Function.
+   * `null` dans la liste = « Non assigné », combinable avec des IDs nommés.
+   */
+  users?: Array<string | null>;
   startDate?: string;
   endDate?: string;
   include?: string[];

@@ -31,7 +31,7 @@ export type ViewFilterValue =
   | boolean
   | null
   | undefined
-  | (string | number | boolean)[]
+  | (string | number | boolean | null)[]
   | { from?: string | number; to?: string | number }
 
 export interface ViewFilter {

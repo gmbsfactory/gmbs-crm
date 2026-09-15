@@ -44,6 +44,7 @@ Retrieves all interventions via the Edge Function `interventions-v2`. Supports f
 | params.metier | `string` | No | Filter by metier ID or code (case-insensitive) |
 | params.metiers | `string[]` | No | Filter by multiple metier IDs or codes |
 | params.user | `string \| null` | No | Filter by assigned user ID. Pass `null` for unassigned (Market view) |
+| params.users | `Array<string \| null>` | No | Filter by **several** assigned users (multi-select gestionnaire). `null` in the list means **unassigned**, and may be mixed with named user IDs. Sent as a repeated `user` query param (`null` on the wire for the unassigned marker); takes precedence over `params.user`. Mixed selections are applied as `assigned_user_id IS NULL OR assigned_user_id IN (...)` — `.in()` alone cannot express it. |
 | params.startDate | `string` | No | Filter by start date (ISO string) |
 | params.endDate | `string` | No | Filter by end date (ISO string) |
 | params.isCheck | `boolean` | No | Filter "check" interventions only |

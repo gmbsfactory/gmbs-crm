@@ -71,6 +71,7 @@ describe('filter-converter', () => {
         const filters = [{ property: 'attribueA', operator: 'eq', value: '__NO_USER_USERNAME__' }]
         const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
         expect(serverFilters.user).toBeUndefined()
+        expect(serverFilters.users).toBeUndefined()
         expect(clientFilters).toHaveLength(0)
       })
 
@@ -161,7 +162,58 @@ describe('filter-converter', () => {
       it('should convert in operator with CURRENT_USER', () => {
         const filters = [{ property: 'attribueA', operator: 'in', value: ['CURRENT_USER'] }]
         const { serverFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
-        expect(serverFilters.user).toBe('current-user-id')
+        expect(serverFilters.users).toEqual(['current-user-id'])
+      })
+
+      it('should keep ALL selected users on in operator (multi-select gestionnaire)', () => {
+        const filters = [{ property: 'attribueA', operator: 'in', value: ['jean', 'marie', 'CURRENT_USER'] }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.users).toEqual(['user-1', 'user-2', 'current-user-id'])
+        expect(serverFilters.user).toBeUndefined()
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it('should convert an in operator containing only null to the unassigned filter', () => {
+        const filters = [{ property: 'attribueA', operator: 'in', value: [null] }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.user).toBeNull()
+        expect(serverFilters.users).toBeUndefined()
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it('should combine "Non assigné" with named gestionnaires', () => {
+        const filters = [{ property: 'attribueA', operator: 'in', value: ['jean', null, 'marie'] }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.users).toEqual(['user-1', 'user-2', null])
+        expect(serverFilters.user).toBeUndefined()
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it('should combine "Non assigné" with CURRENT_USER', () => {
+        const filters = [{ property: 'attribueA', operator: 'in', value: [null, 'CURRENT_USER'] }]
+        const { serverFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.users).toEqual(['current-user-id', null])
+      })
+
+      it('should keep "Non assigné" when the named codes cannot be resolved', () => {
+        const ctx = createContext({ userCodeToId: () => undefined })
+        const filters = [{ property: 'attribueA', operator: 'in', value: ['inconnu', null] }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, ctx)
+        expect(serverFilters.user).toBeNull()
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it('should dedupe user ids on in operator', () => {
+        const filters = [{ property: 'attribueA', operator: 'in', value: ['jean', 'jean'] }]
+        const { serverFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.users).toEqual(['user-1'])
+      })
+
+      it('should drop unresolvable codes but keep the resolvable ones', () => {
+        const filters = [{ property: 'attribueA', operator: 'in', value: ['jean', 'inconnu'] }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.users).toEqual(['user-1'])
+        expect(clientFilters).toHaveLength(0)
       })
 
       it('should skip __NO_USER_USERNAME__ in in operator', () => {

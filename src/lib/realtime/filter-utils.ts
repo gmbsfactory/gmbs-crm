@@ -70,7 +70,17 @@ export function matchesFilters(
   // US1: Gère le filtre Market (user === null) et Mes demandes (user === user_id)
   // CRITIQUE: Ce filtre est essentiel pour éviter qu'une intervention assignée à un utilisateur
   // apparaisse dans la vue d'un autre utilisateur
-  if (filters.user !== undefined) {
+  // Multi-selection gestionnaire (`users`) : le convertisseur de filtres pose
+  // `users` et laisse `user` indefini. Sans cette branche, matchesFilters
+  // ignorerait totalement le filtre utilisateur et le realtime injecterait
+  // dans la liste des interventions assignees a un gestionnaire non selectionne.
+  if (filters.users && filters.users.length > 0) {
+    // `users` peut mélanger des IDs et `null` (« Non assigné ») : comparaison
+    // directe, sans repli sur '' qui ne matcherait jamais l'entrée null.
+    if (!filters.users.includes(intervention.assigned_user_id ?? null)) {
+      return false
+    }
+  } else if (filters.user !== undefined) {
     if (filters.user === null) {
       // Market: assigned_user_id doit être null (pas d'assignation)
       if (intervention.assigned_user_id !== null) {

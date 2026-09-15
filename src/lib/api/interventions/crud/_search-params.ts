@@ -5,7 +5,7 @@
 import type { InterventionQueryParams } from "@/lib/api/common/types";
 import { parseSearch } from "@/lib/api/interventions/search-qualifiers";
 
-export type FilterValue = string | string[] | null | undefined;
+export type FilterValue = string | Array<string | null> | null | undefined;
 
 export function appendFilterParam(searchParams: URLSearchParams, key: string, value?: FilterValue) {
   if (key === "user" && value === null) {
@@ -15,6 +15,12 @@ export function appendFilterParam(searchParams: URLSearchParams, key: string, va
   if (value === undefined || value === null) return;
   if (Array.isArray(value)) {
     value.forEach((entry) => {
+      // `users` peut contenir null (« Non assigné ») : l'Edge Function lit ce
+      // marqueur sur le même paramètre répété que les IDs.
+      if (entry === null && key === "user") {
+        searchParams.append(key, "null");
+        return;
+      }
       if (entry !== null && typeof entry === "string" && entry.length > 0) {
         searchParams.append(key, entry);
       }
@@ -50,7 +56,11 @@ export function buildBaseSearchParams(
   }
   appendFilterParam(searchParams, "artisan", params?.artisan);
   appendFilterParam(searchParams, "metier", metierValue);
-  appendFilterParam(searchParams, "user", params?.user);
+  if (params?.users && params.users.length > 0) {
+    appendFilterParam(searchParams, "user", params.users);
+  } else {
+    appendFilterParam(searchParams, "user", params?.user);
+  }
 
   if (params?.startDate) searchParams.set("startDate", params.startDate);
   if (params?.endDate) searchParams.set("endDate", params.endDate);

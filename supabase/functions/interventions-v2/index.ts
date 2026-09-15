@@ -151,7 +151,8 @@ serve(async (req: Request) => {
       }
       if (userIds.length > 0) {
         filters.user = userIds;
-      } else if (userIsNull) {
+      }
+      if (userIsNull) {
         filters.userIsNull = true;
       }
 
@@ -249,7 +250,8 @@ serve(async (req: Request) => {
       }
       if (userIds.length > 0) {
         filters.user = userIds;
-      } else if (userIsNull) {
+      }
+      if (userIsNull) {
         filters.userIsNull = true;
       }
 

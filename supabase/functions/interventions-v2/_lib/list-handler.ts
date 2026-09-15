@@ -7,6 +7,7 @@ import type { FilterParams } from './types.ts';
 import {
   applyFilters,
   applySort,
+  applyUserFilter,
   buildSelectClause,
   getCachedCount,
   parseListParam,
@@ -85,7 +86,8 @@ export async function handleListInterventions(
   }
   if (userIds.length > 0) {
     filters.user = userIds;
-  } else if (userIsNull) {
+  }
+  if (userIsNull) {
     filters.userIsNull = true;
   }
 
@@ -195,11 +197,7 @@ export async function handleListInterventions(
       if (metierFilters.length > 0) {
         detailedQuery = detailedQuery.in('metier_id', metierFilters);
       }
-      if (userIds.length > 0) {
-        detailedQuery = detailedQuery.in('assigned_user_id', userIds);
-      } else if (userIsNull) {
-        detailedQuery = detailedQuery.is('assigned_user_id', null);
-      }
+      detailedQuery = applyUserFilter(detailedQuery, filters);
 
       // Filtre isCheck dans la recherche optimisée
       if (filters.isCheck !== undefined && interventionIds.length > 0) {
@@ -321,7 +319,7 @@ export async function handleListInterventions(
         p_agence_id: filters.agence && filters.agence.length === 1 ? filters.agence[0] : null,
         p_metier_ids: filters.metier && filters.metier.length > 0 ? filters.metier : null,
         p_user_id: filters.user && filters.user.length === 1 ? filters.user[0] : null,
-        p_user_is_null: filters.userIsNull ?? false,
+        p_user_is_null: (filters.userIsNull ?? false) && !(filters.user && filters.user.length > 0),
         p_start_date: filters.startDate ?? null,
         p_end_date: filters.endDate ?? null,
       });

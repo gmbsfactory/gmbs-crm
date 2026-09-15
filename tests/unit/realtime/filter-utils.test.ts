@@ -84,6 +84,31 @@ describe("matchesFilters", () => {
     expect(matchesFilters(makeIntervention({ assigned_user_id: "user-2" }), multiUserFilters)).toBe(true)
   })
 
+  it("respects the `users` multi-select param (gestionnaire multi-selection)", () => {
+    // Le convertisseur de filtres pose `users` et laisse `user` indefini :
+    // sans prise en charge, le realtime injecterait n'importe quelle intervention.
+    const { user: _ignored, ...withoutUser } = baseFilters
+    const usersFilters: GetAllParams = { ...withoutUser, users: ["user-1", "user-2"] }
+
+    expect(matchesFilters(makeIntervention({ assigned_user_id: "user-1" }), usersFilters)).toBe(true)
+    expect(matchesFilters(makeIntervention({ assigned_user_id: "user-2" }), usersFilters)).toBe(true)
+    expect(matchesFilters(makeIntervention({ assigned_user_id: "user-9" }), usersFilters)).toBe(false)
+    expect(matchesFilters(makeIntervention({ assigned_user_id: null }), usersFilters)).toBe(false)
+  })
+
+  it("matches unassigned interventions when `users` contains null", () => {
+    const { user: _ignored, ...withoutUser } = baseFilters
+    const mixed: GetAllParams = { ...withoutUser, users: ["user-1", null] }
+
+    expect(matchesFilters(makeIntervention({ assigned_user_id: null }), mixed)).toBe(true)
+    expect(matchesFilters(makeIntervention({ assigned_user_id: "user-1" }), mixed)).toBe(true)
+    expect(matchesFilters(makeIntervention({ assigned_user_id: "user-9" }), mixed)).toBe(false)
+
+    const unassignedOnly: GetAllParams = { ...withoutUser, users: [null] }
+    expect(matchesFilters(makeIntervention({ assigned_user_id: null }), unassignedOnly)).toBe(true)
+    expect(matchesFilters(makeIntervention({ assigned_user_id: "user-1" }), unassignedOnly)).toBe(false)
+  })
+
   it("filters by artisan, agence et métier", () => {
     const filters: GetAllParams = {
       ...baseFilters,
