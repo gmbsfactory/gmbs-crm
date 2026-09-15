@@ -68,6 +68,16 @@ vi.mock("maplibre-gl", () => ({
   },
 }))
 
+/**
+ * Rejoue l'evenement `load` de MapLibre : c'est lui — et non `isStyleLoaded()` —
+ * qui autorise la manipulation des couches (voir runWhenMapLoaded).
+ */
+function fireMapLoad() {
+  mapInstanceBase.once.mock.calls
+    .filter((call) => call[0] === "load")
+    .forEach((call) => call[1]())
+}
+
 describe("MapLibreMapImpl", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -148,6 +158,7 @@ describe("MapLibreMapImpl", () => {
     mapInstanceBase.getLayer = vi.fn((id: string) => (id === "building-3d" ? { id } : undefined))
 
     render(<MapLibreMapImpl lat={48.8566} lng={2.3522} />)
+    fireMapLoad()
 
     expect(MapMock.mock.calls[0][0].pitch).toBe(0)
     expect(mapInstanceBase.setLayoutProperty).toHaveBeenCalledWith("building-3d", "visibility", "none")
@@ -157,6 +168,7 @@ describe("MapLibreMapImpl", () => {
     mapInstanceBase.getLayer = vi.fn((id: string) => (id === "building-3d" ? { id } : undefined))
 
     render(<MapLibreMapImpl lat={48.8566} lng={2.3522} enable3DBuildings />)
+    fireMapLoad()
 
     expect(mapInstanceBase.setLayoutProperty).toHaveBeenCalledWith("building-3d", "visibility", "visible")
     const addedLayerIds = mapInstanceBase.addLayer.mock.calls.map((call) => call[0].id)
@@ -165,17 +177,47 @@ describe("MapLibreMapImpl", () => {
 
   it("should fall back to its own extrusion layer for styles without one", () => {
     render(<MapLibreMapImpl lat={48.8566} lng={2.3522} enable3DBuildings />)
+    fireMapLoad()
 
     const addedLayerIds = mapInstanceBase.addLayer.mock.calls.map((call) => call[0].id)
     expect(addedLayerIds).toContain("3d-buildings")
   })
 
-  it("should bind the load handler only once", () => {
+  it("should never subscribe to load via `on` (it fires only once per map)", () => {
     render(<MapLibreMapImpl lat={48.8566} lng={2.3522} />)
 
     const loadSubscriptions = mapInstanceBase.on.mock.calls.filter((call) => call[0] === "load" || call[0] === "style.load")
     expect(loadSubscriptions).toHaveLength(0)
-    expect(mapInstanceBase.once.mock.calls.filter((call) => call[0] === "load")).toHaveLength(1)
+  })
+
+  it("should recenter on prop change even while tiles are still streaming", () => {
+    // Regression : le cadrage passait par `isStyleLoaded()`, qui repasse a false des
+    // qu'une source streame ou attend un setData. Le repli `once("load")` ne se
+    // redeclenchant jamais, la carte restait figee sur son centre initial (Paris).
+    const { rerender } = render(<MapLibreMapImpl lat={48.8566} lng={2.3522} />)
+    fireMapLoad()
+
+    mapInstanceBase.easeTo = vi.fn()
+    mapInstanceBase.isStyleLoaded = vi.fn(() => false)
+
+    rerender(<MapLibreMapImpl lat={43.2965} lng={5.3698} />)
+
+    expect(markerInstanceBase.setLngLat).toHaveBeenCalledWith([5.3698, 43.2965])
+    expect(mapInstanceBase.easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [5.3698, 43.2965] }),
+    )
+  })
+
+  it("should reframe on the perimeter circle even while tiles are still streaming", () => {
+    const { rerender } = render(<MapLibreMapImpl lat={48.8566} lng={2.3522} circleRadiusKm={10} />)
+    fireMapLoad()
+
+    mapInstanceBase.fitBounds = vi.fn()
+    mapInstanceBase.isStyleLoaded = vi.fn(() => false)
+
+    rerender(<MapLibreMapImpl lat={43.2965} lng={5.3698} circleRadiusKm={10} />)
+
+    expect(mapInstanceBase.fitBounds).toHaveBeenCalledTimes(1)
   })
 
   it("should trigger a single camera animation on mount", () => {

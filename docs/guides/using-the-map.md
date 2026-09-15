@@ -151,6 +151,31 @@ Le hook sous-jacent est `useMapViewMode` (`src/hooks/useMapViewMode.ts`). Il deg
 proprement si `localStorage` est indisponible (navigation privee, cookies bloques) :
 le mode reste actif pour la session, simplement non persiste.
 
+### Recadrage dynamique : ne jamais se fier a `isStyleLoaded()`
+
+La camera suit les props `lat` / `lng` : a chaque changement, `MapLibreMapImpl`
+deplace le marqueur **et** recadre (`easeTo`, ou `fitBounds` quand un rayon ou une
+liaison artisan est fourni).
+
+Deux regles a respecter dans ce composant :
+
+1. **Les operations camera ne sont jamais differees.** `easeTo` / `fitBounds` sont
+   valides des la construction de la carte.
+2. **Les operations sur les couches** (`addSource`, `addLayer`, `setData`,
+   visibilite des batiments 3D) attendent l'evenement `load`, via le drapeau
+   `mapLoadedRef` et l'utilitaire `runWhenMapLoaded`.
+
+`map.isStyleLoaded()` ne doit **pas** servir de garde : il repasse a `false` des
+qu'une source streame des tuiles ou attend un `setData`. Comme `load` ne se
+declenche qu'une fois dans la vie de la carte, un repli `map.once("load", ...)`
+pris apres coup n'est jamais execute — la carte reste alors figee sur son centre
+initial (le defaut Paris des formulaires d'intervention) alors que le marqueur,
+lui, se deplace.
+
+> Note : les interventions sans `latitude` / `longitude` en base sont centrees sur
+> Paris par defaut (`src/lib/interventions/form-types.ts`) tant que l'utilisateur
+> n'a pas clique sur « Localiser » ou choisi une suggestion d'adresse.
+
 ### Exemple basique
 
 ```tsx

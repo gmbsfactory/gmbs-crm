@@ -45,6 +45,10 @@ export function MapLibreMapImpl({
 }: MapLibreMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  /** Passe a true au premier evenement `load`. Ne jamais utiliser `isStyleLoaded()`
+   *  pour cela : il repasse a false des qu'une source streame des tuiles ou attend
+   *  un `setData`, et `map.once("load")` ne se redeclenchera jamais ensuite. */
+  const mapLoadedRef = useRef(false)
   const markerRef = useRef<maplibregl.Marker | null>(null)
   const artisanMarkersRef = useRef<maplibregl.Marker[]>([])
   const circleSourceIdRef = useRef(`intervention-circle-${Math.random().toString(36).slice(2)}`)
@@ -107,6 +111,7 @@ export function MapLibreMapImpl({
       }
 
       const handleLoad = () => {
+        mapLoadedRef.current = true
         if (
           ensureCircleLayers(
             mapInstance,
@@ -142,7 +147,7 @@ export function MapLibreMapImpl({
       // Un seul abonnement a `load`. Le cadrage initial n'est volontairement pas
       // declenche ici : l'effet dependant de [lat, lng, zoom, ...] s'execute des le
       // montage et met deja son propre fitMapToCurrentExtent en file via
-      // runWhenStyleLoaded. L'appeler aussi ici produirait deux animations camera.
+      // runWhenMapLoaded. L'appeler aussi ici produirait deux animations camera.
       mapInstance.once("load", handleLoad)
 
       mapInstance.on("error", (event) => {
@@ -154,6 +159,7 @@ export function MapLibreMapImpl({
       markerRef.current = markerInstance
 
       return () => {
+        mapLoadedRef.current = false
         // Copier les valeurs des refs dans des variables locales pour le cleanup
         // Note: On copie les valeurs au moment du cleanup, pas au moment de l'exécution de l'effet
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -317,10 +323,8 @@ export function MapLibreMapImpl({
     const mapInstance = mapRef.current
     if (!mapInstance) return
 
-    // ⚠️ Attendre que le style soit chargé avant de manipuler les couches
-    if (!mapInstance.isStyleLoaded()) {
-      return
-    }
+    // Le montage applique deja l'extrusion depuis `handleLoad`.
+    if (!mapLoadedRef.current) return
 
     setBuildingsExtrusion(mapInstance, effective3DBuildings)
   }, [effective3DBuildings])
@@ -329,7 +333,7 @@ export function MapLibreMapImpl({
     const mapInstance = mapRef.current
     if (!mapInstance) return
 
-    runWhenStyleLoaded(mapInstance, () => {
+    runWhenMapLoaded(mapInstance, mapLoadedRef, () => {
       if (
         !ensureCircleLayers(
           mapInstance,
@@ -359,7 +363,7 @@ export function MapLibreMapImpl({
     const mapInstance = mapRef.current
     if (!mapInstance) return
 
-    runWhenStyleLoaded(mapInstance, () => {
+    runWhenMapLoaded(mapInstance, mapLoadedRef, () => {
       if (
         !ensureConnectionLayers(
           mapInstance,
@@ -455,10 +459,6 @@ const FALLBACK_BUILDINGS_LAYER_ID = "3d-buildings"
  * Le repli ne sert qu'aux styles depourvus de cette couche.
  */
 function setBuildingsExtrusion(map: maplibregl.Map, enabled: boolean) {
-  if (!map.isStyleLoaded()) {
-    return
-  }
-
   if (map.getLayer(STYLE_BUILDINGS_LAYER_ID)) {
     map.setLayoutProperty(STYLE_BUILDINGS_LAYER_ID, "visibility", enabled ? "visible" : "none")
     return
@@ -476,12 +476,6 @@ function setBuildingsExtrusion(map: maplibregl.Map, enabled: boolean) {
 
 function add3DBuildingsLayer(map: maplibregl.Map) {
   if (map.getLayer(FALLBACK_BUILDINGS_LAYER_ID)) {
-    return
-  }
-
-  // ⚠️ Vérifier que le style est chargé avant de continuer
-  if (!map.isStyleLoaded()) {
-    console.warn("[MapLibre] Style not loaded yet, cannot add 3D buildings")
     return
   }
 
@@ -588,10 +582,6 @@ function ensureCircleLayers(
   fillLayerId: string,
   outlineLayerId: string,
 ): boolean {
-  if (!map.isStyleLoaded()) {
-    return false
-  }
-
   if (!map.getSource(sourceId)) {
     map.addSource(sourceId, {
       type: "geojson",
@@ -634,10 +624,6 @@ function ensureConnectionLayers(
   lineLayerId: string,
   labelLayerId: string,
 ): boolean {
-  if (!map.isStyleLoaded()) {
-    return false
-  }
-
   if (!map.getSource(sourceId)) {
     map.addSource(sourceId, {
       type: "geojson",
@@ -775,31 +761,31 @@ function fitMapToCurrentExtent(
   const hasTarget = Number.isFinite(targetLat) && Number.isFinite(targetLng)
   const hasCircle = !hasTarget && circleRadiusKm != null && circleRadiusKm > 0
 
-  runWhenStyleLoaded(map, () => {
-    if (hasTarget && targetLat != null && targetLng != null) {
-      const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat])
-      bounds.extend([targetLng, targetLat])
-      map.fitBounds(bounds, {
-        padding: FIT_PADDING_PX,
-        duration: FIT_DURATION_MS,
-        maxZoom: MAX_FIT_ZOOM,
-      })
-      return
-    }
+  // Pas d'attente du style : easeTo/fitBounds sont valides des la construction de
+  // la carte, et differer le cadrage l'avait fige sur son centre initial.
+  if (hasTarget && targetLat != null && targetLng != null) {
+    const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat])
+    bounds.extend([targetLng, targetLat])
+    map.fitBounds(bounds, {
+      padding: FIT_PADDING_PX,
+      duration: FIT_DURATION_MS,
+      maxZoom: MAX_FIT_ZOOM,
+    })
+    return
+  }
 
-    if (hasCircle && circleRadiusKm) {
-      map.fitBounds(boundsFromCircle(lat, lng, circleRadiusKm), {
-        padding: FIT_PADDING_PX,
-        duration: FIT_DURATION_MS,
-        maxZoom: MAX_FIT_ZOOM,
-      })
-      return
-    }
+  if (hasCircle && circleRadiusKm) {
+    map.fitBounds(boundsFromCircle(lat, lng, circleRadiusKm), {
+      padding: FIT_PADDING_PX,
+      duration: FIT_DURATION_MS,
+      maxZoom: MAX_FIT_ZOOM,
+    })
+    return
+  }
 
-    // Aucun extent a cadrer : ce hook reste la seule autorite camera, donc il
-    // doit recentrer lui-meme (sinon la carte ne suivrait plus le marqueur).
-    map.easeTo({ center: [lng, lat], zoom, duration: FIT_DURATION_MS })
-  })
+  // Aucun extent a cadrer : ce hook reste la seule autorite camera, donc il
+  // doit recentrer lui-meme (sinon la carte ne suivrait plus le marqueur).
+  map.easeTo({ center: [lng, lat], zoom, duration: FIT_DURATION_MS })
 }
 
 function boundsFromCircle(lat: number, lng: number, radiusKm: number) {
@@ -826,8 +812,20 @@ function boundsFromCircle(lat: number, lng: number, radiusKm: number) {
   )
 }
 
-function runWhenStyleLoaded(map: maplibregl.Map, callback: () => void) {
-  if (map.isStyleLoaded()) {
+/**
+ * Execute `callback` une fois le style initial charge.
+ *
+ * Le drapeau `loadedRef` (arme par l'evenement `load`) remplace `isStyleLoaded()` :
+ * ce dernier redevient false a chaque streaming de tuiles ou `setData` en attente,
+ * et le repli `map.once("load")` ne se redeclencherait jamais, la carte restant
+ * alors figee sur son centre initial.
+ */
+function runWhenMapLoaded(
+  map: maplibregl.Map,
+  loadedRef: { current: boolean },
+  callback: () => void,
+) {
+  if (loadedRef.current) {
     callback()
   } else {
     map.once("load", callback)
